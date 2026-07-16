@@ -1,14 +1,16 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
+import { Square } from "lucide-react";
 import type { ActionDefinition } from "@openextension/actions";
 
 interface Props {
   onSend: (text: string) => void;
   onCommand: (action: ActionDefinition, argument: string) => void;
+  onStop: () => void;
   commands: ActionDefinition[];
   disabled: boolean;
 }
 
-export default function PromptBox({ onSend, onCommand, commands, disabled }: Props) {
+export default function PromptBox({ onSend, onCommand, onStop, commands, disabled }: Props) {
   const [value, setValue] = useState("");
 
   const slashBody = value.startsWith("/") ? value.slice(1) : null;
@@ -80,9 +82,15 @@ export default function PromptBox({ onSend, onCommand, commands, disabled }: Pro
           style={{ flex: 1, resize: "none" }}
           disabled={disabled}
         />
-        <button className="btn btn-primary" onClick={submit} disabled={disabled}>
-          Send
-        </button>
+        {disabled ? (
+          <button className="btn btn-icon" onClick={onStop}>
+            <Square className="icon" size={14} fill="currentColor" /> Stop
+          </button>
+        ) : (
+          <button className="btn btn-primary" onClick={submit}>
+            Send
+          </button>
+        )}
       </div>
     </div>
   );

@@ -14,8 +14,10 @@ chrome.contextMenus.removeAll(() => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (!info.selectionText) return;
-  void triggerSelectionAction(String(info.menuItemId), info.selectionText, tab?.windowId);
+  if (!info.selectionText || tab?.id === undefined) return;
+  // No floating-toolbar capture happened for a right-click, so there's no
+  // remembered field/range to write back into yet.
+  void triggerSelectionAction(String(info.menuItemId), info.selectionText, false, tab.id, tab.windowId);
 });
 
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
@@ -23,8 +25,14 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     forwardContextRequest(message.fields).then(sendResponse);
     return true;
   }
-  if (message.type === "RUN_SELECTION_ACTION") {
-    void triggerSelectionAction(message.actionId, message.selectionText, sender.tab?.windowId);
+  if (message.type === "RUN_SELECTION_ACTION" && sender.tab?.id !== undefined) {
+    void triggerSelectionAction(
+      message.actionId,
+      message.selectionText,
+      message.isReplaceable,
+      sender.tab.id,
+      sender.tab.windowId,
+    );
     return undefined;
   }
   return undefined;
@@ -52,9 +60,15 @@ async function forwardContextRequest(fields: ContextField[]): Promise<Partial<Pa
   }
 }
 
-async function triggerSelectionAction(actionId: string, selectionText: string, windowId?: number) {
+async function triggerSelectionAction(
+  actionId: string,
+  selectionText: string,
+  isReplaceable: boolean,
+  tabId: number,
+  windowId?: number,
+) {
   await chrome.storage.local.set({
-    [PENDING_SELECTION_ACTION_KEY]: { actionId, selectionText, createdAt: Date.now() },
+    [PENDING_SELECTION_ACTION_KEY]: { actionId, selectionText, isReplaceable, tabId, createdAt: Date.now() },
   });
   if (windowId !== undefined) {
     try {

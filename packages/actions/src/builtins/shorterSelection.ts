@@ -4,6 +4,7 @@ export const shorterSelection: ActionDefinition = {
   id: "shorter-selection",
   label: "Shorter",
   requiredFields: ["selection"],
+  supportsReplace: true,
   buildMessages: (context) => [
     {
       role: "user",

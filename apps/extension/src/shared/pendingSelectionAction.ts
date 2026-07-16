@@ -8,5 +8,9 @@ export const PENDING_SELECTION_ACTION_KEY = "pendingSelectionAction";
 export interface PendingSelectionAction {
   actionId: string;
   selectionText: string;
+  // The tab the selection came from, so a later "Replace on page" can target
+  // that exact tab rather than whichever tab happens to be active by then.
+  tabId: number;
+  isReplaceable: boolean;
   createdAt: number;
 }

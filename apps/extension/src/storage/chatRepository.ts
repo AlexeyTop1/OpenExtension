@@ -47,6 +47,13 @@ export async function getMessages(chatId: string): Promise<Message[]> {
   return (await storageGet<Message[]>(messagesKey(chatId))) ?? [];
 }
 
+export async function deleteMessage(chatId: string, messageId: string): Promise<Message[]> {
+  const messages = await getMessages(chatId);
+  const remaining = messages.filter((candidate) => candidate.id !== messageId);
+  await storageSet(messagesKey(chatId), remaining);
+  return remaining;
+}
+
 export async function appendMessage(
   chatId: string,
   message: Pick<Message, "role" | "content">,

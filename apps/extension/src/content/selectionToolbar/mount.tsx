@@ -1,5 +1,6 @@
 import { createRoot, type Root } from "react-dom/client";
 import SelectionToolbar from "./SelectionToolbar";
+import { captureReplaceTarget } from "./replaceTarget";
 
 let host: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -11,7 +12,7 @@ function removeToolbar() {
   host = null;
 }
 
-function showToolbar(rect: DOMRect, selectionText: string) {
+function showToolbar(rect: DOMRect, selectionText: string, isReplaceable: boolean) {
   removeToolbar();
 
   host = document.createElement("div");
@@ -26,7 +27,9 @@ function showToolbar(rect: DOMRect, selectionText: string) {
   shadowRoot.appendChild(mountPoint);
 
   root = createRoot(mountPoint);
-  root.render(<SelectionToolbar selectionText={selectionText} onDone={removeToolbar} />);
+  root.render(
+    <SelectionToolbar selectionText={selectionText} isReplaceable={isReplaceable} onDone={removeToolbar} />,
+  );
 }
 
 export function mountSelectionToolbar() {
@@ -40,8 +43,9 @@ export function mountSelectionToolbar() {
         removeToolbar();
         return;
       }
+      const isReplaceable = captureReplaceTarget();
       const rect = selection.getRangeAt(0).getBoundingClientRect();
-      showToolbar(rect, text);
+      showToolbar(rect, text, isReplaceable);
     }, 0);
   });
 

@@ -4,6 +4,7 @@ export const improveSelection: ActionDefinition = {
   id: "improve-selection",
   label: "Improve",
   requiredFields: ["selection"],
+  supportsReplace: true,
   buildMessages: (context) => [
     {
       role: "user",

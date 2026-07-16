@@ -4,6 +4,7 @@ export const fixGrammarSelection: ActionDefinition = {
   id: "fix-grammar-selection",
   label: "Fix grammar",
   requiredFields: ["selection"],
+  supportsReplace: true,
   buildMessages: (context) => [
     {
       role: "user",

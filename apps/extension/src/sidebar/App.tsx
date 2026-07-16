@@ -27,6 +27,7 @@ import {
   appendMessage,
   createChat,
   deleteChat,
+  deleteMessage,
   getMessages,
   listChats,
   updateChat,
@@ -36,6 +37,7 @@ import type { Chat, Message } from "../storage/schema";
 import { pickDefaultProviderAndModel } from "./defaultProvider";
 import { detectLanguageCode, getPreferredLanguage } from "./preferredLanguage";
 import { consumePendingSelectionAction, onPendingSelectionAction } from "./pendingSelectionAction";
+import type { PendingSelectionAction } from "../shared/pendingSelectionAction";
 import { normalizeUrl } from "./normalizeUrl";
 import { useActiveTabUrl } from "./useActiveTabUrl";
 import ChatHistoryList from "./components/ChatHistoryList";
@@ -68,6 +70,7 @@ export default function App() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [dismissedPinId, setDismissedPinId] = useState<string | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<{ messageId: string; tabId: number } | null>(null);
 
   const activeTabUrl = useActiveTabUrl();
   const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
@@ -87,6 +90,7 @@ export default function App() {
   // stable, only `.current` changes, so even a "stale" closure sees fresh data.
   const chatRef = useRef<Chat | null>(null);
   const isSendingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   useEffect(() => {
     chatRef.current = chat;
   }, [chat]);
@@ -105,11 +109,11 @@ export default function App() {
       // alone isn't enough since setChat() only lands on a *future* render.
       const activeChat = await bootstrap();
       const pending = await consumePendingSelectionAction();
-      if (pending) await handleRunSelectionAction(pending.actionId, pending.selectionText, activeChat);
+      if (pending) await handleRunSelectionAction(pending, activeChat);
     })();
 
     const unsubscribe = onPendingSelectionAction((pending) => {
-      void handleRunSelectionAction(pending.actionId, pending.selectionText);
+      void handleRunSelectionAction(pending);
     });
     return unsubscribe;
   }, []);
@@ -144,6 +148,7 @@ export default function App() {
     setError(null);
     setPendingAction(null);
     setShowHistory(false);
+    setReplaceTarget(null);
     await refreshChats();
   }
 
@@ -156,6 +161,7 @@ export default function App() {
     setError(null);
     setPendingAction(null);
     setShowHistory(false);
+    setReplaceTarget(null);
   }
 
   async function handleDeleteChat(chatId: string) {
@@ -252,9 +258,16 @@ export default function App() {
     void handleRunPageAction(action, argument || undefined);
   }
 
-  async function handleRunSelectionAction(actionId: string, selectionText: string, activeChat?: Chat) {
+  async function handleRunSelectionAction(pending: PendingSelectionAction, activeChat?: Chat) {
+    const { actionId, selectionText, tabId, isReplaceable } = pending;
     const action = SELECTION_ACTIONS.find((candidate) => candidate.id === actionId);
     if (!action) return;
+
+    const maybeRememberReplaceTarget = (assistantMessage: Message | null) => {
+      if (assistantMessage && isReplaceable && action.supportsReplace) {
+        setReplaceTarget({ messageId: assistantMessage.id, tabId });
+      }
+    };
 
     if (action.id === customPromptSelection.id) {
       setPendingAction({
@@ -280,17 +293,100 @@ export default function App() {
         return;
       }
       const [message] = runAction(action, { selection: selectionText, input: preferred.label });
-      await handleSend(message.content, activeChat);
+      maybeRememberReplaceTarget(await handleSend(message.content, activeChat));
       return;
     }
 
     const [message] = runAction(action, { selection: selectionText });
-    await handleSend(message.content, activeChat);
+    maybeRememberReplaceTarget(await handleSend(message.content, activeChat));
   }
 
-  async function handleSend(text: string, activeChat?: Chat) {
-    const targetChat = activeChat ?? chatRef.current;
+  async function handleReplace(messageId: string, text: string) {
+    if (!replaceTarget || replaceTarget.messageId !== messageId) return;
+    try {
+      const ok = await chrome.tabs.sendMessage(replaceTarget.tabId, { type: "REPLACE_SELECTION", text });
+      if (!ok) setError("Couldn't find that text on the page anymore — try selecting it again.");
+    } catch {
+      setError("Couldn't reach that page anymore — try selecting the text again.");
+    } finally {
+      setReplaceTarget(null);
+    }
+  }
+
+  async function streamAssistantReply(targetChat: Chat, history: ChatMessage[]): Promise<Message | null> {
+    setIsSending(true);
+    setStreamingText("");
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    let assembled = "";
+    let result: Message | null = null;
+    try {
+      const config = await getProviderConfig(targetChat.providerId);
+      const provider = createProvider(targetChat.providerId, {
+        id: targetChat.providerId,
+        apiKey: config?.apiKey,
+        baseUrl: config?.baseUrl,
+      });
+
+      for await (const chunk of provider.chat({
+        model: targetChat.modelId,
+        messages: history,
+        signal: controller.signal,
+      })) {
+        if (chunk.delta) {
+          assembled += chunk.delta;
+          setStreamingText(assembled);
+        }
+      }
+
+      result = await appendMessage(targetChat.id, { role: "assistant", content: assembled });
+      setMessages((prev) => [...prev, result!]);
+    } catch (err) {
+      const wasStopped = err instanceof DOMException && err.name === "AbortError";
+      if (wasStopped) {
+        // Keep whatever was streamed before Stop was pressed, rather than
+        // discarding a partial (but possibly still useful) reply.
+        if (assembled) {
+          result = await appendMessage(targetChat.id, { role: "assistant", content: assembled });
+          setMessages((prev) => [...prev, result!]);
+        }
+      } else {
+        setError(err instanceof Error ? err.message : "Something went wrong.");
+      }
+    } finally {
+      setStreamingText(null);
+      setIsSending(false);
+      abortControllerRef.current = null;
+      void refreshChats();
+    }
+    return result;
+  }
+
+  function handleStop() {
+    abortControllerRef.current?.abort();
+  }
+
+  async function handleRegenerate() {
+    const targetChat = chatRef.current;
     if (!targetChat || isSendingRef.current) return;
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "assistant") return;
+
+    const remaining = await deleteMessage(targetChat.id, last.id);
+    setMessages(remaining);
+
+    const history: ChatMessage[] = remaining.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+    await streamAssistantReply(targetChat, history);
+  }
+
+  async function handleSend(text: string, activeChat?: Chat): Promise<Message | null> {
+    const targetChat = activeChat ?? chatRef.current;
+    if (!targetChat || isSendingRef.current) return null;
     setError(null);
 
     const preset = PROVIDER_PRESETS.find((candidate) => candidate.id === targetChat.providerId);
@@ -298,7 +394,7 @@ export default function App() {
     const isConfigured = config && (config.apiKey || !preset?.requiresApiKey);
     if (!isConfigured) {
       setError(`Configure ${preset?.label ?? targetChat.providerId} in Options first.`);
-      return;
+      return null;
     }
 
     const finalText = pendingAction
@@ -317,40 +413,12 @@ export default function App() {
     // already persisted the user message, so this includes it.
     const historySoFar = await getMessages(targetChat.id);
     setMessages(historySoFar);
-    setIsSending(true);
-    setStreamingText("");
 
-    try {
-      const provider = createProvider(targetChat.providerId, {
-        id: targetChat.providerId,
-        apiKey: config.apiKey,
-        baseUrl: config.baseUrl,
-      });
-      const history: ChatMessage[] = historySoFar.map((message) => ({
-        role: message.role,
-        content: message.content,
-      }));
-
-      let assembled = "";
-      for await (const chunk of provider.chat({ model: targetChat.modelId, messages: history })) {
-        if (chunk.delta) {
-          assembled += chunk.delta;
-          setStreamingText(assembled);
-        }
-      }
-
-      const assistantMessage = await appendMessage(targetChat.id, {
-        role: "assistant",
-        content: assembled,
-      });
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setStreamingText(null);
-      setIsSending(false);
-      void refreshChats();
-    }
+    const history: ChatMessage[] = historySoFar.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+    return streamAssistantReply(targetChat, history);
   }
 
   return (
@@ -416,7 +484,13 @@ export default function App() {
             />
           )}
 
-          <MessageList messages={messages} streamingText={streamingText} />
+          <MessageList
+            messages={messages}
+            streamingText={streamingText}
+            onRegenerate={handleRegenerate}
+            replaceableMessageId={replaceTarget?.messageId ?? null}
+            onReplace={handleReplace}
+          />
 
           {error && (
             <div className="text-danger" style={{ padding: "0 var(--space-3)", fontSize: 13 }}>
@@ -445,6 +519,7 @@ export default function App() {
           <PromptBox
             onSend={handleSend}
             onCommand={handleSlashCommand}
+            onStop={handleStop}
             commands={PAGE_ACTIONS}
             disabled={isSending}
           />

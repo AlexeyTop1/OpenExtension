@@ -2,12 +2,13 @@ import { SELECTION_ACTIONS } from "@openextension/actions";
 
 interface Props {
   selectionText: string;
+  isReplaceable: boolean;
   onDone: () => void;
 }
 
-export default function SelectionToolbar({ selectionText, onDone }: Props) {
+export default function SelectionToolbar({ selectionText, isReplaceable, onDone }: Props) {
   const handleClick = (actionId: string) => {
-    chrome.runtime.sendMessage({ type: "RUN_SELECTION_ACTION", actionId, selectionText });
+    chrome.runtime.sendMessage({ type: "RUN_SELECTION_ACTION", actionId, selectionText, isReplaceable });
     onDone();
   };
 

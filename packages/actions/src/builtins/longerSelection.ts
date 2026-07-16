@@ -4,6 +4,7 @@ export const longerSelection: ActionDefinition = {
   id: "longer-selection",
   label: "Longer",
   requiredFields: ["selection"],
+  supportsReplace: true,
   buildMessages: (context) => [
     {
       role: "user",

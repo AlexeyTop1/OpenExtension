@@ -16,12 +16,22 @@ export interface ExtractContextMessage {
   fields: ContextField[];
 }
 
-// Not yet handled (selection toolbar/actions land in a later milestone) — typed
-// now so the message union doesn't need to change shape when they do.
+// Content script (selection toolbar) -> background, via chrome.runtime.sendMessage.
 export interface RunSelectionActionMessage {
   type: "RUN_SELECTION_ACTION";
   actionId: string;
   selectionText: string;
+  // Whether the content script found an editable field/contenteditable range
+  // behind the selection that a later REPLACE_SELECTION could write back into.
+  isReplaceable: boolean;
+}
+
+// Sidebar -> the tab that originated a replaceable selection action, via
+// chrome.tabs.sendMessage(tabId, ...) directly (no background relay needed,
+// since the sidebar already knows which tab from the pending selection action).
+export interface ReplaceSelectionMessage {
+  type: "REPLACE_SELECTION";
+  text: string;
 }
 
 export interface OpenSidebarWithPromptMessage {
@@ -34,4 +44,5 @@ export type ExtensionMessage =
   | ContextRequestMessage
   | ExtractContextMessage
   | RunSelectionActionMessage
+  | ReplaceSelectionMessage
   | OpenSidebarWithPromptMessage;

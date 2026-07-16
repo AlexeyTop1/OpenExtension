@@ -4,6 +4,7 @@ export const translateSelection: ActionDefinition = {
   id: "translate-selection",
   label: "Translate",
   requiredFields: ["selection"],
+  supportsReplace: true,
   buildMessages: (context) => [
     {
       role: "user",
