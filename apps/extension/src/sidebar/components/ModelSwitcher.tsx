@@ -49,12 +49,8 @@ export default function ModelSwitcher({ chat, onChange }: Props) {
   }
 
   return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-      <select
-        value={chat.providerId}
-        onChange={(event) => handleProviderChange(event.target.value)}
-        style={{ fontSize: 12 }}
-      >
+    <div style={{ display: "flex", gap: "var(--space-1)", alignItems: "center", minWidth: 0 }}>
+      <select className="select" value={chat.providerId} onChange={(event) => handleProviderChange(event.target.value)}>
         {providers.map((preset) => (
           <option key={preset.id} value={preset.id}>
             {preset.label}
@@ -62,10 +58,11 @@ export default function ModelSwitcher({ chat, onChange }: Props) {
         ))}
       </select>
       <select
+        className="select"
         value={chat.modelId}
         onChange={(event) => handleModelChange(event.target.value)}
         disabled={loading || models.length === 0}
-        style={{ fontSize: 12 }}
+        style={{ minWidth: 0 }}
       >
         {models.length === 0 && <option value="">{loading ? "Loading…" : "No models found"}</option>}
         {models.map((model) => (

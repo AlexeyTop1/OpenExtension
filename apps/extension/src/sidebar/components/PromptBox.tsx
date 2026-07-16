@@ -44,39 +44,43 @@ export default function PromptBox({ onSend, onCommand, commands, disabled }: Pro
   };
 
   return (
-    <div style={{ borderTop: "1px solid #e5e5e5" }}>
+    <div style={{ borderTop: "1px solid var(--color-border)", background: "var(--color-bg-subtle)" }}>
       {slashBody !== null && !exactMatch && suggestions.length > 0 && (
-        <div style={{ padding: "6px 12px 0", display: "flex", flexDirection: "column", gap: 2 }}>
+        <div
+          className="panel"
+          style={{
+            margin: "var(--space-2) var(--space-3) 0",
+            padding: "var(--space-1)",
+            display: "flex",
+            flexDirection: "column",
+            background: "var(--color-bg)",
+          }}
+        >
           {suggestions.map((action) => (
             <button
               key={action.id}
+              className="btn-ghost"
               onClick={() => setValue(`/${action.command} `)}
-              style={{
-                textAlign: "left",
-                fontSize: 12,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 4,
-              }}
+              style={{ textAlign: "left", fontSize: 12, width: "100%" }}
             >
-              /{action.command} — {action.label}
+              <strong>/{action.command}</strong>&nbsp;<span className="text-muted">— {action.label}</span>
             </button>
           ))}
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, padding: 12 }}>
+      <div style={{ display: "flex", gap: "var(--space-2)", padding: "var(--space-3)" }}>
         <textarea
+          className="input"
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Ask anything, or type / for commands…"
           rows={2}
-          style={{ flex: 1, resize: "none", padding: 8 }}
+          style={{ flex: 1, resize: "none" }}
           disabled={disabled}
         />
-        <button onClick={submit} disabled={disabled}>
+        <button className="btn btn-primary" onClick={submit} disabled={disabled}>
           Send
         </button>
       </div>

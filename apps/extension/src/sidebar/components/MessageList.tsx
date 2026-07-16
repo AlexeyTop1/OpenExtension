@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { useEffect, useRef } from "react";
+import { MessageCircle } from "lucide-react";
 import type { Message } from "../../storage/schema";
 
 interface Props {
@@ -6,34 +7,54 @@ interface Props {
   streamingText: string | null;
 }
 
-const bubbleStyle = (role: "user" | "assistant"): CSSProperties => ({
-  alignSelf: role === "user" ? "flex-end" : "flex-start",
-  background: role === "user" ? "#2563eb" : "#f1f1f1",
-  color: role === "user" ? "#fff" : "#111",
-  padding: "8px 12px",
-  borderRadius: 8,
-  maxWidth: "85%",
-  whiteSpace: "pre-wrap",
-});
+function TypingDots() {
+  return (
+    <span className="typing-dots">
+      <span />
+      <span />
+      <span />
+    </span>
+  );
+}
 
 export default function MessageList({ messages, streamingText }: Props) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, streamingText]);
+
+  if (messages.length === 0 && streamingText === null) {
+    return (
+      <div className="empty-state">
+        <MessageCircle size={28} />
+        <div>Ask anything, or try a Page Action below.</div>
+        <div>Type “/” in the box for quick commands.</div>
+      </div>
+    );
+  }
+
   return (
     <div
+      className="scrollbar-thin"
       style={{
         flex: 1,
         overflowY: "auto",
-        padding: 12,
+        padding: "var(--space-3)",
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: "var(--space-2)",
       }}
     >
       {messages.map((message) => (
-        <div key={message.id} style={bubbleStyle(message.role)}>
+        <div key={message.id} className={`bubble bubble-${message.role}`}>
           {message.content}
         </div>
       ))}
-      {streamingText !== null && <div style={bubbleStyle("assistant")}>{streamingText || "…"}</div>}
+      {streamingText !== null && (
+        <div className="bubble bubble-assistant">{streamingText || <TypingDots />}</div>
+      )}
+      <div ref={bottomRef} />
     </div>
   );
 }

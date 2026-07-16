@@ -1,3 +1,4 @@
+import { describeProviderError } from "./httpError";
 import type { ChatChunk, ChatRequest, ModelInfo, Provider, ProviderConfig, ProviderPreset } from "./types";
 
 interface OpenAIStreamChoice {
@@ -74,7 +75,7 @@ export class OpenAICompatibleProvider implements Provider {
 
     if (!res.ok || !res.body) {
       const text = await res.text().catch(() => "");
-      throw new Error(`${this.label} chat request failed (${res.status}): ${text}`);
+      throw new Error(describeProviderError(this.label, res.status, text));
     }
 
     const reader = res.body.getReader();

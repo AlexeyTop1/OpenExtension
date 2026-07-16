@@ -11,19 +11,14 @@ export default function PageActionsBar({ onRunAction, disabled, translateTargetL
     <div
       style={{
         display: "flex",
-        gap: 6,
+        gap: "var(--space-1)",
         flexWrap: "wrap",
-        padding: "8px 12px",
-        borderTop: "1px solid #e5e5e5",
+        padding: "var(--space-2) var(--space-3)",
+        borderTop: "1px solid var(--color-border)",
       }}
     >
       {PAGE_ACTIONS.map((action) => (
-        <button
-          key={action.id}
-          onClick={() => onRunAction(action)}
-          disabled={disabled}
-          style={{ fontSize: 12, padding: "4px 8px" }}
-        >
+        <button key={action.id} className="btn btn-icon" onClick={() => onRunAction(action)} disabled={disabled}>
           {action.id === translatePage.id && translateTargetLanguage
             ? `${action.label} → ${translateTargetLanguage}`
             : action.label}

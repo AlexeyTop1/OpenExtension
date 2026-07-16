@@ -1,4 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  ChevronLeft,
+  FileText,
+  History,
+  Languages,
+  Pin,
+  Plus,
+  Puzzle,
+  Scissors,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { createProvider, PROVIDER_PRESETS, type ChatMessage } from "@openextension/providers";
 import {
   askAboutPage,
@@ -42,6 +54,7 @@ interface PendingAction {
   page?: Partial<PageContext>;
   selection?: string;
   hint: string;
+  icon: LucideIcon;
 }
 
 export default function App() {
@@ -196,7 +209,12 @@ export default function App() {
         await handleSend(message.content);
         return;
       }
-      setPendingAction({ action, page, hint: `📄 Using page: ${page.title || page.url} — type your question below` });
+      setPendingAction({
+        action,
+        page,
+        icon: FileText,
+        hint: `Using page: ${page.title || page.url} — type your question below`,
+      });
       return;
     }
 
@@ -213,7 +231,8 @@ export default function App() {
         setPendingAction({
           action,
           page,
-          hint: `🌐 This page looks like it's already in ${preferred.label} — type a target language below`,
+          icon: Languages,
+          hint: `This page looks like it's already in ${preferred.label} — type a target language below`,
         });
         return;
       }
@@ -238,7 +257,12 @@ export default function App() {
     if (!action) return;
 
     if (action.id === customPromptSelection.id) {
-      setPendingAction({ action, selection: selectionText, hint: "✂️ Using selection — type your instruction below" });
+      setPendingAction({
+        action,
+        selection: selectionText,
+        icon: Scissors,
+        hint: "Using selection — type your instruction below",
+      });
       return;
     }
 
@@ -250,7 +274,8 @@ export default function App() {
         setPendingAction({
           action,
           selection: selectionText,
-          hint: `🌐 This looks like it's already in ${preferred.label} — type a target language below`,
+          icon: Languages,
+          hint: `This looks like it's already in ${preferred.label} — type a target language below`,
         });
         return;
       }
@@ -329,33 +354,48 @@ export default function App() {
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <header
         style={{
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "8px 12px",
-          borderBottom: "1px solid #e5e5e5",
-          gap: 8,
+          flexDirection: "column",
+          gap: "var(--space-2)",
+          padding: "var(--space-3)",
+          borderBottom: "1px solid var(--color-border)",
+          background: "var(--color-bg-subtle)",
         }}
       >
-        <strong>OpenExtension</strong>
-        {!showHistory && chat && <ModelSwitcher chat={chat} onChange={handleModelChange} />}
-        <button onClick={() => setShowHistory((prev) => !prev)}>{showHistory ? "Back" : "History"}</button>
-        {!showHistory && (
-          <button onClick={handlePinToggle} disabled={!chat || !normalizedCurrentUrl}>
-            {chat?.pinnedUrl ? "📌 Pinned" : "📌 Pin"}
-          </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-2)" }}>
+          <strong style={{ fontSize: 14, display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}>
+            <Puzzle className="icon" size={16} /> OpenExtension
+          </strong>
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <button className="btn btn-icon" onClick={() => setShowHistory((prev) => !prev)}>
+              {showHistory ? (
+                <>
+                  <ChevronLeft className="icon" size={14} /> Back
+                </>
+              ) : (
+                <>
+                  <History className="icon" size={14} /> History
+                </>
+              )}
+            </button>
+            <button className="btn btn-icon btn-primary" onClick={handleNewChat}>
+              <Plus className="icon" size={14} /> New chat
+            </button>
+          </div>
+        </div>
+
+        {!showHistory && chat && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-2)" }}>
+            <ModelSwitcher chat={chat} onChange={handleModelChange} />
+            <button className="btn btn-icon" onClick={handlePinToggle} disabled={!normalizedCurrentUrl}>
+              <Pin className="icon" size={14} fill={chat.pinnedUrl ? "currentColor" : "none"} />
+              {chat.pinnedUrl ? "Pinned" : "Pin"}
+            </button>
+          </div>
         )}
-        <button onClick={handleNewChat}>New chat</button>
       </header>
 
       {showHistory ? (
@@ -378,24 +418,20 @@ export default function App() {
 
           <MessageList messages={messages} streamingText={streamingText} />
 
-          {error && <div style={{ color: "#b00", padding: "0 12px", fontSize: 13 }}>{error}</div>}
+          {error && (
+            <div className="text-danger" style={{ padding: "0 var(--space-3)", fontSize: 13 }}>
+              {error}
+            </div>
+          )}
 
           {pendingAction && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                margin: "0 12px",
-                padding: "4px 8px",
-                background: "#eef2ff",
-                borderRadius: 6,
-                fontSize: 12,
-              }}
-            >
-              <span>{pendingAction.hint}</span>
-              <button onClick={() => setPendingAction(null)} style={{ fontSize: 12 }}>
-                ×
+            <div className="chip chip-info" style={{ margin: "0 var(--space-3)" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}>
+                <pendingAction.icon className="icon" size={14} />
+                {pendingAction.hint}
+              </span>
+              <button className="btn-ghost" onClick={() => setPendingAction(null)}>
+                <X className="icon" size={14} />
               </button>
             </div>
           )}

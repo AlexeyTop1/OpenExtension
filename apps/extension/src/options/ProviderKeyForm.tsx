@@ -12,11 +12,13 @@ export default function ProviderKeyForm({ preset }: Props) {
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState(preset.baseUrl);
   const [status, setStatus] = useState<Status>("idle");
+  const [isConfigured, setIsConfigured] = useState(false);
 
   useEffect(() => {
     getProviderConfig(preset.id).then((config) => {
       if (config?.apiKey) setApiKey(config.apiKey);
       if (config?.baseUrl) setBaseUrl(config.baseUrl);
+      if (config) setIsConfigured(true);
     });
   }, [preset.id]);
 
@@ -48,46 +50,55 @@ export default function ProviderKeyForm({ preset }: Props) {
       apiKey: apiKey || undefined,
       baseUrl: preset.editableBaseUrl ? effectiveBaseUrl : undefined,
     });
+    setIsConfigured(true);
     setStatus("saved");
     setTimeout(() => setStatus("idle"), 1500);
   };
 
   return (
-    <div style={{ marginTop: 24 }}>
-      <label style={{ display: "block", fontWeight: 600 }}>{preset.label}</label>
+    <div className="panel" style={{ padding: "var(--space-3) var(--space-4)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+        <span
+          title={isConfigured ? "Configured" : "Not configured"}
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: isConfigured ? "#22c55e" : "var(--color-border)",
+            flexShrink: 0,
+          }}
+        />
+        <label style={{ fontWeight: 600, fontSize: 14 }}>{preset.label}</label>
+      </div>
 
       {preset.editableBaseUrl && (
         <input
           type="text"
+          className="input"
           value={baseUrl}
           onChange={(event) => setBaseUrl(event.target.value)}
           placeholder="https://your-endpoint.example.com/v1"
-          style={{ width: "100%", padding: 8, marginTop: 6, boxSizing: "border-box" }}
+          style={{ marginTop: "var(--space-2)" }}
         />
       )}
 
       <input
         type="password"
+        className="input"
         value={apiKey}
         onChange={(event) => setApiKey(event.target.value)}
         placeholder={preset.requiresApiKey ? "sk-..." : "API key (optional)"}
-        style={{ width: "100%", padding: 8, marginTop: 6, boxSizing: "border-box" }}
+        style={{ marginTop: "var(--space-2)" }}
       />
 
-      <div style={{ marginTop: 8 }}>
-        <button onClick={handleSave} style={{ padding: "8px 16px" }}>
+      <div style={{ marginTop: "var(--space-2)", display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+        <button className="btn btn-primary" onClick={handleSave}>
           Save
         </button>
-        {status === "saved" && <span style={{ marginLeft: 8 }}>Saved.</span>}
-        {status === "missing-key" && (
-          <span style={{ marginLeft: 8, color: "#b00" }}>API key is required.</span>
-        )}
-        {status === "invalid-url" && (
-          <span style={{ marginLeft: 8, color: "#b00" }}>That endpoint URL doesn't look valid.</span>
-        )}
-        {status === "permission-denied" && (
-          <span style={{ marginLeft: 8, color: "#b00" }}>Permission request was denied.</span>
-        )}
+        {status === "saved" && <span className="text-muted">Saved.</span>}
+        {status === "missing-key" && <span className="text-danger">API key is required.</span>}
+        {status === "invalid-url" && <span className="text-danger">That endpoint URL doesn't look valid.</span>}
+        {status === "permission-denied" && <span className="text-danger">Permission request was denied.</span>}
       </div>
     </div>
   );
