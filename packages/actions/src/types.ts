@@ -3,6 +3,7 @@ import type { ContextField, PageContext } from "@openextension/context";
 
 export interface ActionContext {
   page?: Partial<PageContext>;
+  selection?: string;
   input?: string;
 }
 

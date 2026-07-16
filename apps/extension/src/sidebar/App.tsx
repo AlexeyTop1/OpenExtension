@@ -1,12 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createProvider, PROVIDER_PRESETS, type ChatMessage } from "@openextension/providers";
-import { askAboutPage, translatePage, runAction, type ActionDefinition } from "@openextension/actions";
+import {
+  askAboutPage,
+  translatePage,
+  translateSelection,
+  customPromptSelection,
+  runAction,
+  type ActionDefinition,
+} from "@openextension/actions";
+import { SELECTION_ACTIONS } from "@openextension/actions";
 import type { ContextField, PageContext } from "@openextension/context";
 import { appendMessage, createChat, getMessages, listChats, updateChat } from "../storage/chatRepository";
 import { getProviderConfig } from "../storage/providerRepository";
 import type { Chat, Message } from "../storage/schema";
 import { pickDefaultProviderAndModel } from "./defaultProvider";
 import { detectLanguageCode, getPreferredLanguage } from "./preferredLanguage";
+import { consumePendingSelectionAction, onPendingSelectionAction } from "./pendingSelectionAction";
 import MessageList from "./components/MessageList";
 import ModelSwitcher from "./components/ModelSwitcher";
 import PageActionsBar from "./components/PageActionsBar";
@@ -18,7 +27,8 @@ async function fetchPageContext(fields: ContextField[]): Promise<Partial<PageCon
 
 interface PendingAction {
   action: ActionDefinition;
-  page: Partial<PageContext>;
+  page?: Partial<PageContext>;
+  selection?: string;
   hint: string;
 }
 
@@ -31,22 +41,52 @@ export default function App() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [translateTargetLanguage, setTranslateTargetLanguage] = useState<string | null>(null);
 
+  // The chrome.storage.onChanged subscription below is set up once (empty deps)
+  // and lives for the component's whole lifetime, so any state it reads directly
+  // through closures would stay frozen at whatever it was on first mount — long
+  // after bootstrap() actually finishes. Refs sidestep that: the ref object is
+  // stable, only `.current` changes, so even a "stale" closure sees fresh data.
+  const chatRef = useRef<Chat | null>(null);
+  const isSendingRef = useRef(false);
   useEffect(() => {
-    void bootstrap();
+    chatRef.current = chat;
+  }, [chat]);
+  useEffect(() => {
+    isSendingRef.current = isSending;
+  }, [isSending]);
+
+  useEffect(() => {
     getPreferredLanguage().then((preferred) => setTranslateTargetLanguage(preferred.label));
+
+    (async () => {
+      // bootstrap() must finish (and hand us the resolved chat directly) before we
+      // act on a pending selection action: when background cold-opens the side
+      // panel for a toolbar/context-menu click, this effect and bootstrap() start
+      // together, and `chat` state from this render is still null — sequencing
+      // alone isn't enough since setChat() only lands on a *future* render.
+      const activeChat = await bootstrap();
+      const pending = await consumePendingSelectionAction();
+      if (pending) await handleRunSelectionAction(pending.actionId, pending.selectionText, activeChat);
+    })();
+
+    const unsubscribe = onPendingSelectionAction((pending) => {
+      void handleRunSelectionAction(pending.actionId, pending.selectionText);
+    });
+    return unsubscribe;
   }, []);
 
-  async function bootstrap() {
+  async function bootstrap(): Promise<Chat> {
     const chats = await listChats();
     if (chats[0]) {
       setChat(chats[0]);
       setMessages(await getMessages(chats[0].id));
-      return;
+      return chats[0];
     }
     const { providerId, modelId } = await pickDefaultProviderAndModel();
     const created = await createChat(providerId, modelId);
     setChat(created);
     setMessages([]);
+    return created;
   }
 
   async function handleNewChat() {
@@ -95,32 +135,71 @@ export default function App() {
     await handleSend(message.content);
   }
 
-  async function handleSend(text: string) {
-    if (!chat || isSending) return;
+  async function handleRunSelectionAction(actionId: string, selectionText: string, activeChat?: Chat) {
+    const action = SELECTION_ACTIONS.find((candidate) => candidate.id === actionId);
+    if (!action) return;
+
+    if (action.id === customPromptSelection.id) {
+      setPendingAction({ action, selection: selectionText, hint: "✂️ Using selection — type your instruction below" });
+      return;
+    }
+
+    if (action.id === translateSelection.id) {
+      const preferred = await getPreferredLanguage();
+      const detected = await detectLanguageCode(selectionText);
+      const baseCode = preferred.code.split("-")[0];
+      if (detected && detected === baseCode) {
+        setPendingAction({
+          action,
+          selection: selectionText,
+          hint: `🌐 This looks like it's already in ${preferred.label} — type a target language below`,
+        });
+        return;
+      }
+      const [message] = runAction(action, { selection: selectionText, input: preferred.label });
+      await handleSend(message.content, activeChat);
+      return;
+    }
+
+    const [message] = runAction(action, { selection: selectionText });
+    await handleSend(message.content, activeChat);
+  }
+
+  async function handleSend(text: string, activeChat?: Chat) {
+    const targetChat = activeChat ?? chatRef.current;
+    if (!targetChat || isSendingRef.current) return;
     setError(null);
 
-    const preset = PROVIDER_PRESETS.find((candidate) => candidate.id === chat.providerId);
-    const config = await getProviderConfig(chat.providerId);
+    const preset = PROVIDER_PRESETS.find((candidate) => candidate.id === targetChat.providerId);
+    const config = await getProviderConfig(targetChat.providerId);
     const isConfigured = config && (config.apiKey || !preset?.requiresApiKey);
     if (!isConfigured) {
-      setError(`Configure ${preset?.label ?? chat.providerId} in Options first.`);
+      setError(`Configure ${preset?.label ?? targetChat.providerId} in Options first.`);
       return;
     }
 
     const finalText = pendingAction
-      ? runAction(pendingAction.action, { page: pendingAction.page, input: text })[0].content
+      ? runAction(pendingAction.action, {
+          page: pendingAction.page,
+          selection: pendingAction.selection,
+          input: text,
+        })[0].content
       : text;
     setPendingAction(null);
 
-    const userMessage = await appendMessage(chat.id, { role: "user", content: finalText });
-    const historySoFar = [...messages, userMessage];
+    await appendMessage(targetChat.id, { role: "user", content: finalText });
+    // Always reread from storage rather than trusting the `messages` closure:
+    // callers reached through the long-lived storage.onChanged subscription (see
+    // chatRef above) can have a stale `messages` snapshot too. appendMessage
+    // already persisted the user message, so this includes it.
+    const historySoFar = await getMessages(targetChat.id);
     setMessages(historySoFar);
     setIsSending(true);
     setStreamingText("");
 
     try {
-      const provider = createProvider(chat.providerId, {
-        id: chat.providerId,
+      const provider = createProvider(targetChat.providerId, {
+        id: targetChat.providerId,
         apiKey: config.apiKey,
         baseUrl: config.baseUrl,
       });
@@ -130,14 +209,14 @@ export default function App() {
       }));
 
       let assembled = "";
-      for await (const chunk of provider.chat({ model: chat.modelId, messages: history })) {
+      for await (const chunk of provider.chat({ model: targetChat.modelId, messages: history })) {
         if (chunk.delta) {
           assembled += chunk.delta;
           setStreamingText(assembled);
         }
       }
 
-      const assistantMessage = await appendMessage(chat.id, {
+      const assistantMessage = await appendMessage(targetChat.id, {
         role: "assistant",
         content: assembled,
       });

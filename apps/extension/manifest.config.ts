@@ -8,7 +8,7 @@ export default defineManifest({
   version: pkg.version,
   action: {},
   background: {
-    service_worker: "src/background/index.ts",
+    service_worker: "src/background/serviceWorker.ts",
     type: "module",
   },
   side_panel: {
@@ -22,7 +22,7 @@ export default defineManifest({
       run_at: "document_idle",
     },
   ],
-  permissions: ["storage", "sidePanel", "tabs"],
+  permissions: ["storage", "sidePanel", "tabs", "contextMenus"],
   optional_host_permissions: [
     "https://api.openai.com/*",
     "https://api.anthropic.com/*",
