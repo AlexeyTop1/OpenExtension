@@ -5,6 +5,7 @@ export const askAboutPage: ActionDefinition = {
   id: "ask-about-page",
   label: "Ask about page",
   requiredFields: ["title", "url", "markdown"],
+  command: "ask",
   buildMessages: (context) => [
     {
       role: "user",

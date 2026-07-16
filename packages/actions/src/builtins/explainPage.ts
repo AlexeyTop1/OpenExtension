@@ -5,6 +5,7 @@ export const explainPage: ActionDefinition = {
   id: "explain-page",
   label: "Explain page",
   requiredFields: ["title", "url", "markdown"],
+  command: "explain",
   buildMessages: (context) => [
     {
       role: "user",

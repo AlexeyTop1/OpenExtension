@@ -5,6 +5,7 @@ export const rewritePage: ActionDefinition = {
   id: "rewrite-page",
   label: "Rewrite",
   requiredFields: ["title", "url", "markdown"],
+  command: "rewrite",
   buildMessages: (context) => [
     {
       role: "user",

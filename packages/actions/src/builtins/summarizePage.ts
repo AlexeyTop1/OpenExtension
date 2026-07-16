@@ -5,6 +5,7 @@ export const summarizePage: ActionDefinition = {
   id: "summarize-page",
   label: "Summarize",
   requiredFields: ["title", "url", "markdown"],
+  command: "summarize",
   buildMessages: (context) => [
     {
       role: "user",

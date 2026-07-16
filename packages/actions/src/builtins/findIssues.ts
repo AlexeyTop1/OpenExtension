@@ -5,6 +5,7 @@ export const findIssues: ActionDefinition = {
   id: "find-issues",
   label: "Find issues",
   requiredFields: ["title", "url", "markdown"],
+  command: "find-issues",
   buildMessages: (context) => [
     {
       role: "user",

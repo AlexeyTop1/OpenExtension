@@ -5,6 +5,7 @@ export const translatePage: ActionDefinition = {
   id: "translate-page",
   label: "Translate",
   requiredFields: ["title", "url", "markdown"],
+  command: "translate",
   buildMessages: (context) => [
     {
       role: "user",

@@ -1,4 +1,4 @@
-import { storageGet, storageSet } from "./local";
+import { storageGet, storageRemove, storageSet } from "./local";
 import type { Chat, Message } from "./schema";
 
 const CHATS_KEY = "chats";
@@ -32,6 +32,15 @@ export async function updateChat(updated: Chat): Promise<void> {
     chats[index] = updated;
     await storageSet(CHATS_KEY, chats);
   }
+}
+
+export async function deleteChat(chatId: string): Promise<void> {
+  const chats = await listChats();
+  await storageSet(
+    CHATS_KEY,
+    chats.filter((candidate) => candidate.id !== chatId),
+  );
+  await storageRemove(messagesKey(chatId));
 }
 
 export async function getMessages(chatId: string): Promise<Message[]> {

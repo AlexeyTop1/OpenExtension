@@ -6,19 +6,31 @@ import {
   translateSelection,
   customPromptSelection,
   runAction,
+  PAGE_ACTIONS,
   type ActionDefinition,
 } from "@openextension/actions";
 import { SELECTION_ACTIONS } from "@openextension/actions";
 import type { ContextField, PageContext } from "@openextension/context";
-import { appendMessage, createChat, getMessages, listChats, updateChat } from "../storage/chatRepository";
+import {
+  appendMessage,
+  createChat,
+  deleteChat,
+  getMessages,
+  listChats,
+  updateChat,
+} from "../storage/chatRepository";
 import { getProviderConfig } from "../storage/providerRepository";
 import type { Chat, Message } from "../storage/schema";
 import { pickDefaultProviderAndModel } from "./defaultProvider";
 import { detectLanguageCode, getPreferredLanguage } from "./preferredLanguage";
 import { consumePendingSelectionAction, onPendingSelectionAction } from "./pendingSelectionAction";
+import { normalizeUrl } from "./normalizeUrl";
+import { useActiveTabUrl } from "./useActiveTabUrl";
+import ChatHistoryList from "./components/ChatHistoryList";
 import MessageList from "./components/MessageList";
 import ModelSwitcher from "./components/ModelSwitcher";
 import PageActionsBar from "./components/PageActionsBar";
+import PinBanner from "./components/PinBanner";
 import PromptBox from "./components/PromptBox";
 
 async function fetchPageContext(fields: ContextField[]): Promise<Partial<PageContext>> {
@@ -40,6 +52,20 @@ export default function App() {
   const [isSending, setIsSending] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [translateTargetLanguage, setTranslateTargetLanguage] = useState<string | null>(null);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [dismissedPinId, setDismissedPinId] = useState<string | null>(null);
+
+  const activeTabUrl = useActiveTabUrl();
+  const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
+  const pinnedChat = normalizedCurrentUrl
+    ? chats.find((candidate) => candidate.pinnedUrl === normalizedCurrentUrl && candidate.id !== chat?.id)
+    : undefined;
+  const showPinBanner = pinnedChat && pinnedChat.id !== dismissedPinId;
+
+  useEffect(() => {
+    setDismissedPinId(null);
+  }, [normalizedCurrentUrl]);
 
   // The chrome.storage.onChanged subscription below is set up once (empty deps)
   // and lives for the component's whole lifetime, so any state it reads directly
@@ -75,17 +101,24 @@ export default function App() {
     return unsubscribe;
   }, []);
 
+  async function refreshChats(): Promise<Chat[]> {
+    const all = await listChats();
+    setChats(all);
+    return all;
+  }
+
   async function bootstrap(): Promise<Chat> {
-    const chats = await listChats();
-    if (chats[0]) {
-      setChat(chats[0]);
-      setMessages(await getMessages(chats[0].id));
-      return chats[0];
+    const all = await refreshChats();
+    if (all[0]) {
+      setChat(all[0]);
+      setMessages(await getMessages(all[0].id));
+      return all[0];
     }
     const { providerId, modelId } = await pickDefaultProviderAndModel();
     const created = await createChat(providerId, modelId);
     setChat(created);
     setMessages([]);
+    await refreshChats();
     return created;
   }
 
@@ -97,6 +130,54 @@ export default function App() {
     setStreamingText(null);
     setError(null);
     setPendingAction(null);
+    setShowHistory(false);
+    await refreshChats();
+  }
+
+  async function handleSelectChat(chatId: string) {
+    const target = chats.find((candidate) => candidate.id === chatId);
+    if (!target) return;
+    setChat(target);
+    setMessages(await getMessages(chatId));
+    setStreamingText(null);
+    setError(null);
+    setPendingAction(null);
+    setShowHistory(false);
+  }
+
+  async function handleDeleteChat(chatId: string) {
+    await deleteChat(chatId);
+    const remaining = await refreshChats();
+
+    if (chat?.id !== chatId) return;
+
+    if (remaining[0]) {
+      setChat(remaining[0]);
+      setMessages(await getMessages(remaining[0].id));
+      return;
+    }
+    const { providerId, modelId } = await pickDefaultProviderAndModel();
+    const created = await createChat(providerId, modelId);
+    setChat(created);
+    setMessages([]);
+    await refreshChats();
+  }
+
+  async function handleRenameChat(chatId: string, title: string) {
+    const target = chats.find((candidate) => candidate.id === chatId);
+    if (!target) return;
+    const updated: Chat = { ...target, title };
+    await updateChat(updated);
+    if (chat?.id === chatId) setChat(updated);
+    await refreshChats();
+  }
+
+  async function handlePinToggle() {
+    if (!chat || !normalizedCurrentUrl) return;
+    const updated: Chat = { ...chat, pinnedUrl: chat.pinnedUrl ? null : normalizedCurrentUrl };
+    setChat(updated);
+    await updateChat(updated);
+    await refreshChats();
   }
 
   async function handleModelChange(providerId: string, modelId: string) {
@@ -106,15 +187,25 @@ export default function App() {
     await updateChat(updated);
   }
 
-  async function handleRunPageAction(action: ActionDefinition) {
+  async function handleRunPageAction(action: ActionDefinition, argumentOverride?: string) {
     const page = await fetchPageContext(action.requiredFields);
 
     if (action.id === askAboutPage.id) {
+      if (argumentOverride) {
+        const [message] = runAction(action, { page, input: argumentOverride });
+        await handleSend(message.content);
+        return;
+      }
       setPendingAction({ action, page, hint: `📄 Using page: ${page.title || page.url} — type your question below` });
       return;
     }
 
     if (action.id === translatePage.id) {
+      if (argumentOverride) {
+        const [message] = runAction(action, { page, input: argumentOverride });
+        await handleSend(message.content);
+        return;
+      }
       const preferred = await getPreferredLanguage();
       const detected = await detectLanguageCode(page.markdown || page.title || "");
       const baseCode = preferred.code.split("-")[0];
@@ -133,6 +224,13 @@ export default function App() {
 
     const [message] = runAction(action, { page });
     await handleSend(message.content);
+  }
+
+  // Third entry point into the same PAGE_ACTIONS used by the button bar and
+  // (via SELECTION_ACTIONS) the toolbar/context menu — proves actions are
+  // decoupled from how they're triggered.
+  function handleSlashCommand(action: ActionDefinition, argument: string) {
+    void handleRunPageAction(action, argument || undefined);
   }
 
   async function handleRunSelectionAction(actionId: string, selectionText: string, activeChat?: Chat) {
@@ -226,6 +324,7 @@ export default function App() {
     } finally {
       setStreamingText(null);
       setIsSending(false);
+      void refreshChats();
     }
   }
 
@@ -249,41 +348,72 @@ export default function App() {
         }}
       >
         <strong>OpenExtension</strong>
-        {chat && <ModelSwitcher chat={chat} onChange={handleModelChange} />}
+        {!showHistory && chat && <ModelSwitcher chat={chat} onChange={handleModelChange} />}
+        <button onClick={() => setShowHistory((prev) => !prev)}>{showHistory ? "Back" : "History"}</button>
+        {!showHistory && (
+          <button onClick={handlePinToggle} disabled={!chat || !normalizedCurrentUrl}>
+            {chat?.pinnedUrl ? "📌 Pinned" : "📌 Pin"}
+          </button>
+        )}
         <button onClick={handleNewChat}>New chat</button>
       </header>
 
-      <MessageList messages={messages} streamingText={streamingText} />
+      {showHistory ? (
+        <ChatHistoryList
+          chats={[...chats].sort((a, b) => b.updatedAt - a.updatedAt)}
+          activeChatId={chat?.id ?? null}
+          onSelect={handleSelectChat}
+          onDelete={handleDeleteChat}
+          onRename={handleRenameChat}
+        />
+      ) : (
+        <>
+          {showPinBanner && pinnedChat && (
+            <PinBanner
+              title={pinnedChat.title}
+              onResume={() => handleSelectChat(pinnedChat.id)}
+              onDismiss={() => setDismissedPinId(pinnedChat.id)}
+            />
+          )}
 
-      {error && <div style={{ color: "#b00", padding: "0 12px", fontSize: 13 }}>{error}</div>}
+          <MessageList messages={messages} streamingText={streamingText} />
 
-      {pendingAction && (
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            margin: "0 12px",
-            padding: "4px 8px",
-            background: "#eef2ff",
-            borderRadius: 6,
-            fontSize: 12,
-          }}
-        >
-          <span>{pendingAction.hint}</span>
-          <button onClick={() => setPendingAction(null)} style={{ fontSize: 12 }}>
-            ×
-          </button>
-        </div>
+          {error && <div style={{ color: "#b00", padding: "0 12px", fontSize: 13 }}>{error}</div>}
+
+          {pendingAction && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                margin: "0 12px",
+                padding: "4px 8px",
+                background: "#eef2ff",
+                borderRadius: 6,
+                fontSize: 12,
+              }}
+            >
+              <span>{pendingAction.hint}</span>
+              <button onClick={() => setPendingAction(null)} style={{ fontSize: 12 }}>
+                ×
+              </button>
+            </div>
+          )}
+
+          <PageActionsBar
+            onRunAction={handleRunPageAction}
+            disabled={isSending}
+            translateTargetLanguage={translateTargetLanguage}
+          />
+
+          <PromptBox
+            onSend={handleSend}
+            onCommand={handleSlashCommand}
+            commands={PAGE_ACTIONS}
+            disabled={isSending}
+          />
+        </>
       )}
-
-      <PageActionsBar
-        onRunAction={handleRunPageAction}
-        disabled={isSending}
-        translateTargetLanguage={translateTargetLanguage}
-      />
-
-      <PromptBox onSend={handleSend} disabled={isSending} />
     </div>
   );
 }
