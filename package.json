@@ -1,0 +1,16 @@
+{
+  "name": "openextension",
+  "private": true,
+  "version": "0.0.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter extension dev",
+    "build": "pnpm --filter extension build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}
