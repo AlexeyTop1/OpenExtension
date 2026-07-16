@@ -1,19 +1,24 @@
-import type { ChatChunk, ChatRequest, ModelInfo, Provider, ProviderConfig, ProviderPreset } from "./types";
+import type {
+  ChatChunk,
+  ChatRequest,
+  ModelInfo,
+  Provider,
+  ProviderConfig,
+  ProviderPreset,
+} from "./types";
 
-interface OpenAIStreamChoice {
-  delta?: { content?: string };
-  finish_reason?: string | null;
+const ANTHROPIC_VERSION = "2023-06-01";
+
+interface AnthropicStreamEvent {
+  type: string;
+  delta?: { type?: string; text?: string; stop_reason?: string | null };
 }
 
-interface OpenAIStreamChunk {
-  choices?: OpenAIStreamChoice[];
+interface AnthropicModelsResponse {
+  data?: Array<{ id: string; display_name?: string }>;
 }
 
-interface OpenAIModelsResponse {
-  data?: Array<{ id: string }>;
-}
-
-export class OpenAICompatibleProvider implements Provider {
+export class AnthropicProvider implements Provider {
   readonly id: string;
   readonly label: string;
   private baseUrl: string;
@@ -35,11 +40,15 @@ export class OpenAICompatibleProvider implements Provider {
   }
 
   private headers(): HeadersInit {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (this.apiKey) {
-      headers.Authorization = `Bearer ${this.apiKey}`;
-    }
-    return headers;
+    return {
+      "Content-Type": "application/json",
+      "anthropic-version": ANTHROPIC_VERSION,
+      // Anthropic's API blocks browser-origin requests by default (to discourage
+      // shipping API keys to end users); this header is required to call it
+      // directly from an extension page instead of through a backend proxy.
+      "anthropic-dangerous-direct-browser-access": "true",
+      ...(this.apiKey ? { "x-api-key": this.apiKey } : {}),
+    };
   }
 
   async listModels(): Promise<ModelInfo[]> {
@@ -48,26 +57,35 @@ export class OpenAICompatibleProvider implements Provider {
       if (!res.ok) {
         return this.fallbackModels;
       }
-      const json = (await res.json()) as OpenAIModelsResponse;
+      const json = (await res.json()) as AnthropicModelsResponse;
       if (!json.data?.length) {
         return this.fallbackModels;
       }
-      return json.data.map((model) => ({ id: model.id, label: model.id }));
+      return json.data.map((model) => ({ id: model.id, label: model.display_name ?? model.id }));
     } catch {
       return this.fallbackModels;
     }
   }
 
   async *chat(request: ChatRequest): AsyncIterable<ChatChunk> {
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const systemText = request.messages
+      .filter((message) => message.role === "system")
+      .map((message) => message.content)
+      .join("\n\n");
+    const conversation = request.messages
+      .filter((message) => message.role !== "system")
+      .map((message) => ({ role: message.role, content: message.content }));
+
+    const res = await fetch(`${this.baseUrl}/messages`, {
       method: "POST",
       headers: this.headers(),
       signal: request.signal,
       body: JSON.stringify({
         model: request.model,
-        messages: request.messages,
+        max_tokens: request.maxTokens ?? 4096,
         temperature: request.temperature,
-        max_tokens: request.maxTokens,
+        system: systemText || undefined,
+        messages: conversation,
         stream: true,
       }),
     });
@@ -94,19 +112,14 @@ export class OpenAICompatibleProvider implements Provider {
         if (!trimmed.startsWith("data:")) continue;
 
         const data = trimmed.slice("data:".length).trim();
-        if (data === "[DONE]") {
-          yield { delta: "", done: true };
-          return;
-        }
+        if (!data) continue;
 
-        const parsed = JSON.parse(data) as OpenAIStreamChunk;
-        const choice = parsed.choices?.[0];
-        const delta = choice?.delta?.content ?? "";
-        if (delta) {
-          yield { delta, done: false };
-        }
-        if (choice?.finish_reason) {
-          yield { delta: "", done: true, finishReason: choice.finish_reason };
+        const event = JSON.parse(data) as AnthropicStreamEvent;
+
+        if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+          yield { delta: event.delta.text ?? "", done: false };
+        } else if (event.type === "message_stop") {
+          yield { delta: "", done: true };
           return;
         }
       }

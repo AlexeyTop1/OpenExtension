@@ -25,6 +25,15 @@ export async function createChat(providerId: string, modelId: string): Promise<C
   return chat;
 }
 
+export async function updateChat(updated: Chat): Promise<void> {
+  const chats = await listChats();
+  const index = chats.findIndex((candidate) => candidate.id === updated.id);
+  if (index !== -1) {
+    chats[index] = updated;
+    await storageSet(CHATS_KEY, chats);
+  }
+}
+
 export async function getMessages(chatId: string): Promise<Message[]> {
   return (await storageGet<Message[]>(messagesKey(chatId))) ?? [];
 }

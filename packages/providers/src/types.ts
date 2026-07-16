@@ -38,3 +38,16 @@ export interface Provider {
   chat(request: ChatRequest): AsyncIterable<ChatChunk>;
   embeddings?(input: string[]): Promise<number[][]>;
 }
+
+export type ProviderKind = "openai-compatible" | "anthropic" | "gemini";
+
+export interface ProviderPreset {
+  id: string;
+  label: string;
+  kind: ProviderKind;
+  baseUrl: string;
+  requiresApiKey: boolean;
+  /** Whether the Options UI should let the user override baseUrl (local/self-hosted or fully custom endpoints). */
+  editableBaseUrl?: boolean;
+  fallbackModels: ModelInfo[];
+}

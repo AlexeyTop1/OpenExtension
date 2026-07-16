@@ -1,0 +1,19 @@
+{
+  "name": "@openextension/context",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "turndown": "^7.2.4"
+  },
+  "devDependencies": {
+    "@types/turndown": "^5.0.6",
+    "typescript": "^7.0.2"
+  }
+}

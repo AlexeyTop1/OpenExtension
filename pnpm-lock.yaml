@@ -14,6 +14,12 @@ importers:
 
   apps/extension:
     dependencies:
+      '@openextension/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
+      '@openextension/context':
+        specifier: workspace:*
+        version: link:../../packages/context
       '@openextension/providers':
         specifier: workspace:*
         version: link:../../packages/providers
@@ -46,6 +52,35 @@ importers:
         specifier: ^8.1.5
         version: 8.1.5
 
+  packages/actions:
+    dependencies:
+      '@openextension/context':
+        specifier: workspace:*
+        version: link:../context
+      '@openextension/providers':
+        specifier: workspace:*
+        version: link:../providers
+    devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  packages/context:
+    dependencies:
+      '@mozilla/readability':
+        specifier: ^0.6.0
+        version: 0.6.0
+      turndown:
+        specifier: ^7.2.4
+        version: 7.2.4
+    devDependencies:
+      '@types/turndown':
+        specifier: ^5.0.6
+        version: 5.0.6
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   packages/providers:
     devDependencies:
       typescript:
@@ -70,6 +105,13 @@ packages:
 
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==, tarball: https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz}
+
+  '@mixmark-io/domino@2.2.0':
+    resolution: {integrity: sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==, tarball: https://registry.npmjs.org/@mixmark-io/domino/-/domino-2.2.0.tgz}
+
+  '@mozilla/readability@0.6.0':
+    resolution: {integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==, tarball: https://registry.npmjs.org/@mozilla/readability/-/readability-0.6.0.tgz}
+    engines: {node: '>=14.0.0'}
 
   '@napi-rs/wasm-runtime@1.1.6':
     resolution: {integrity: sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==, tarball: https://registry.npmjs.org/@napi-rs/wasm-runtime/-/wasm-runtime-1.1.6.tgz}
@@ -194,6 +236,9 @@ packages:
 
   '@types/react@19.2.17':
     resolution: {integrity: sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==, tarball: https://registry.npmjs.org/@types/react/-/react-19.2.17.tgz}
+
+  '@types/turndown@5.0.6':
+    resolution: {integrity: sha512-ru00MoyeeouE5BX4gRL+6m/BsDfbRayOskWqUvh7CLGW+UXxHQItqALa38kKnOiZPqJrtzJUgAC2+F0rL1S4Pg==, tarball: https://registry.npmjs.org/@types/turndown/-/turndown-5.0.6.tgz}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==, tarball: https://registry.npmjs.org/@typescript/typescript-aix-ppc64/-/typescript-aix-ppc64-7.0.2.tgz}
@@ -559,6 +604,10 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==, tarball: https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz}
 
+  turndown@7.2.4:
+    resolution: {integrity: sha512-I8yFsfRzmzK0WV1pNNOA4A7y4RDfFxPRxb3t+e3ui14qSGOxGtiSP6GjeX+Y6CHb7HYaFj7ECUD7VE5kQMZWGQ==, tarball: https://registry.npmjs.org/turndown/-/turndown-7.2.4.tgz}
+    engines: {node: '>=18', npm: '>=9'}
+
   typescript@7.0.2:
     resolution: {integrity: sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==, tarball: https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz}
     engines: {node: '>=16.20.0'}
@@ -651,6 +700,10 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
+  '@mixmark-io/domino@2.2.0': {}
+
+  '@mozilla/readability@0.6.0': {}
+
   '@napi-rs/wasm-runtime@1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)':
     dependencies:
       '@emnapi/core': 1.11.1
@@ -736,6 +789,8 @@ snapshots:
   '@types/react@19.2.17':
     dependencies:
       csstype: 3.2.3
+
+  '@types/turndown@5.0.6': {}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -1003,6 +1058,10 @@ snapshots:
       picomatch: 4.0.5
 
   tslib@2.8.1: {}
+
+  turndown@7.2.4:
+    dependencies:
+      '@mixmark-io/domino': 2.2.0
 
   typescript@7.0.2:
     optionalDependencies:
