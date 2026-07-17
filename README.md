@@ -61,12 +61,7 @@ Chat streaming happens in the sidebar itself, not the background service worker 
 
 ## Roadmap
 
-- **v0.1 — done.** Everything listed under Features above.
-- **v0.2** — PDF Q&A, image context-menu actions, YouTube summarization, Gmail/GitHub helpers.
-- **v0.3** — Prompt Library (user-defined slash actions) and a Marketplace for sharing prompt packs.
-- **v0.4** — Multi-step AI agents and an MCP client (Notion, Slack, GitHub, Linear, Jira, …).
-- **v0.5** — Workspaces (per-context models/prompts/keys) and a local Knowledge Base.
-- **v1.0** — Public Extensions API, Providers API, and Actions API, so the community can add providers, actions, and plugins without forking.
+MVP (v0.1, everything listed under Features above) is done. Next up: PDF Q&A, image context-menu actions, YouTube summarization, and Gmail/GitHub helpers.
 
 ## Contributing
 
