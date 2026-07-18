@@ -13,6 +13,7 @@
     "@openextension/context": "workspace:*",
     "@openextension/providers": "workspace:*",
     "lucide-react": "^1.24.0",
+    "pdfjs-dist": "^6.1.200",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

@@ -8,6 +8,7 @@ import {
   Plus,
   Puzzle,
   Scissors,
+  Upload,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -40,6 +41,7 @@ import { detectLanguageCode, getPreferredLanguage } from "./preferredLanguage";
 import { consumePendingSelectionAction, onPendingSelectionAction } from "./pendingSelectionAction";
 import type { PendingSelectionAction } from "../shared/pendingSelectionAction";
 import { normalizeUrl } from "./normalizeUrl";
+import { parsePdfBytes } from "../shared/pdfParse";
 import { useActiveTabUrl } from "./useActiveTabUrl";
 import ChatHistoryList from "./components/ChatHistoryList";
 import MessageList from "./components/MessageList";
@@ -72,6 +74,17 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [dismissedPinId, setDismissedPinId] = useState<string | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<{ messageId: string; tabId: number } | null>(null);
+  const [pendingLocalPdf, setPendingLocalPdf] = useState<{
+    fileName: string;
+    page: Partial<PageContext>;
+    action: ActionDefinition;
+    argumentOverride?: string;
+  } | null>(null);
+  const localPdfInputRef = useRef<HTMLInputElement | null>(null);
+  // Keyed by page URL so re-running an action (or a different Page Action) on
+  // the same local PDF doesn't ask the user to re-pick the file — cleared
+  // when the side panel closes, which is an acceptable "for this session" scope.
+  const localPdfTextCacheRef = useRef<Map<string, string>>(new Map());
 
   const activeTabUrl = useActiveTabUrl();
   const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
@@ -211,6 +224,45 @@ export default function App() {
   async function handleRunPageAction(action: ActionDefinition, argumentOverride?: string) {
     const page = await fetchPageContext(action.requiredFields);
 
+    if (page.localPdfName) {
+      const cached = page.url ? localPdfTextCacheRef.current.get(page.url) : undefined;
+      if (cached) {
+        await runPageActionWithContext(action, { ...page, markdown: cached }, argumentOverride);
+        return;
+      }
+      // No extension context can read a local file's bytes without the user
+      // manually flipping "Allow access to file URLs" — instead, ask them to
+      // pick the same file via a normal <input type="file">, which needs no
+      // special permission at all.
+      setPendingLocalPdf({ fileName: page.localPdfName, page, action, argumentOverride });
+      return;
+    }
+
+    await runPageActionWithContext(action, page, argumentOverride);
+  }
+
+  async function handleLocalPdfFileSelected(file: File) {
+    if (!pendingLocalPdf) return;
+    const { page, action, argumentOverride } = pendingLocalPdf;
+    setPendingLocalPdf(null);
+    try {
+      const text = await parsePdfBytes(await file.arrayBuffer());
+      if (!text) {
+        setError("Couldn't find any text in that PDF — it might be a scanned/image-only document.");
+        return;
+      }
+      if (page.url) localPdfTextCacheRef.current.set(page.url, text);
+      await runPageActionWithContext(action, { ...page, markdown: text }, argumentOverride);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Couldn't read that PDF.");
+    }
+  }
+
+  async function runPageActionWithContext(
+    action: ActionDefinition,
+    page: Partial<PageContext>,
+    argumentOverride?: string,
+  ) {
     if (action.id === summarizeYoutube.id && !page.youtubeTranscript) {
       setError("This video doesn't have captions available, so it can't be summarized from a transcript.");
       return;
@@ -504,6 +556,35 @@ export default function App() {
               {error}
             </div>
           )}
+
+          {pendingLocalPdf && (
+            <div className="chip chip-info" style={{ margin: "0 var(--space-3)" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}>
+                <Upload className="icon" size={14} />
+                Local PDF — pick "{pendingLocalPdf.fileName}" to read it (nothing leaves your device except the
+                extracted text, sent only when you run an action)
+              </span>
+              <div style={{ display: "inline-flex", gap: "var(--space-2)" }}>
+                <button className="btn-ghost" onClick={() => localPdfInputRef.current?.click()}>
+                  Choose file
+                </button>
+                <button className="btn-ghost" onClick={() => setPendingLocalPdf(null)}>
+                  <X className="icon" size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+          <input
+            ref={localPdfInputRef}
+            type="file"
+            accept="application/pdf"
+            style={{ display: "none" }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void handleLocalPdfFileSelected(file);
+            }}
+          />
 
           {pendingAction && (
             <div className="chip chip-info" style={{ margin: "0 var(--space-3)" }}>
