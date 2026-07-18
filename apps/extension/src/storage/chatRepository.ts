@@ -74,7 +74,7 @@ export async function appendMessage(
   if (chat) {
     chat.updatedAt = Date.now();
     if (chat.title === "New chat" && message.role === "user") {
-      chat.title = message.content.slice(0, 60);
+      chat.title = typeof message.content === "string" ? message.content.slice(0, 60) : "Image";
     }
     await storageSet(CHATS_KEY, chats);
   }

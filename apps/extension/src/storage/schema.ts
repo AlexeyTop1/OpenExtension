@@ -1,3 +1,5 @@
+import type { MessageContentPart } from "@openextension/providers";
+
 export interface Chat {
   id: string;
   title: string;
@@ -12,7 +14,10 @@ export interface Message {
   id: string;
   chatId: string;
   role: "user" | "assistant";
-  content: string;
+  // An array of parts for image-action turns (attaches the image alongside
+  // the instruction text) so regenerate/follow-ups still have it; plain
+  // string for every other turn.
+  content: string | MessageContentPart[];
   createdAt: number;
 }
 

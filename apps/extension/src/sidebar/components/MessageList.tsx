@@ -1,6 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, MessageCircle, RotateCcw, Replace } from "lucide-react";
+import { textOnly } from "@openextension/providers";
 import type { Message } from "../../storage/schema";
+
+function renderContent(content: Message["content"]) {
+  if (typeof content === "string") return content;
+  return content.map((part, index) =>
+    part.type === "text" ? (
+      <span key={index}>{part.text}</span>
+    ) : (
+      <img
+        key={index}
+        src={part.dataUrl}
+        alt=""
+        style={{ maxWidth: "100%", borderRadius: "var(--radius-md)", display: "block", marginTop: "var(--space-1)" }}
+      />
+    ),
+  );
+}
 
 interface Props {
   messages: Message[];
@@ -88,9 +105,9 @@ export default function MessageList({
               gap: 2,
             }}
           >
-            <div className={`bubble bubble-${message.role}`}>{message.content}</div>
+            <div className={`bubble bubble-${message.role}`}>{renderContent(message.content)}</div>
             <div style={{ display: "flex", gap: 2 }}>
-              <CopyButton text={message.content} />
+              <CopyButton text={textOnly(message.content)} />
               {isLastAssistantReply && (
                 <button className="btn-ghost" style={{ padding: 2 }} title="Regenerate" onClick={onRegenerate}>
                   <RotateCcw className="icon" size={12} />
@@ -101,7 +118,7 @@ export default function MessageList({
                   className="btn-ghost"
                   style={{ padding: "2px 6px", fontSize: 11 }}
                   title="Replace the selected text on the page with this"
-                  onClick={() => onReplace(message.id, message.content)}
+                  onClick={() => onReplace(message.id, textOnly(message.content))}
                 >
                   <Replace className="icon" size={12} /> Replace on page
                 </button>

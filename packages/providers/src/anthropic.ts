@@ -1,6 +1,8 @@
+import { parseDataUrl, textOnly } from "./contentParts";
 import { describeProviderError } from "./httpError";
 import type {
   ChatChunk,
+  ChatMessage,
   ChatRequest,
   ModelInfo,
   Provider,
@@ -9,6 +11,15 @@ import type {
 } from "./types";
 
 const ANTHROPIC_VERSION = "2023-06-01";
+
+function toAnthropicContent(content: ChatMessage["content"]) {
+  if (typeof content === "string") return content;
+  return content.map((part) => {
+    if (part.type === "text") return { type: "text", text: part.text };
+    const { mediaType, base64 } = parseDataUrl(part.dataUrl);
+    return { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } };
+  });
+}
 
 interface AnthropicStreamEvent {
   type: string;
@@ -71,11 +82,11 @@ export class AnthropicProvider implements Provider {
   async *chat(request: ChatRequest): AsyncIterable<ChatChunk> {
     const systemText = request.messages
       .filter((message) => message.role === "system")
-      .map((message) => message.content)
+      .map((message) => textOnly(message.content))
       .join("\n\n");
     const conversation = request.messages
       .filter((message) => message.role !== "system")
-      .map((message) => ({ role: message.role, content: message.content }));
+      .map((message) => ({ role: message.role, content: toAnthropicContent(message.content) }));
 
     const res = await fetch(`${this.baseUrl}/messages`, {
       method: "POST",

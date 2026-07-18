@@ -5,6 +5,7 @@ export interface ActionContext {
   page?: Partial<PageContext>;
   selection?: string;
   input?: string;
+  image?: { dataUrl: string };
 }
 
 export interface ActionDefinition {

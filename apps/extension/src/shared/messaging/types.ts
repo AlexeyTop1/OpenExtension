@@ -40,9 +40,21 @@ export interface OpenSidebarWithPromptMessage {
   context?: Partial<PageContext>;
 }
 
+// Sidebar -> the tab an image action's context-menu click came from, via
+// chrome.tabs.sendMessage(tabId, ...). Fetching happens in the content script
+// (page-origin fetch, same privilege an <img> tag already has) rather than in
+// the sidebar or background, neither of which have that origin's context.
+export interface FetchImageDataUrlMessage {
+  type: "FETCH_IMAGE_DATA_URL";
+  imageUrl: string;
+}
+
+export type FetchImageDataUrlResponse = { dataUrl: string } | { error: string };
+
 export type ExtensionMessage =
   | ContextRequestMessage
   | ExtractContextMessage
   | RunSelectionActionMessage
   | ReplaceSelectionMessage
-  | OpenSidebarWithPromptMessage;
+  | OpenSidebarWithPromptMessage
+  | FetchImageDataUrlMessage;

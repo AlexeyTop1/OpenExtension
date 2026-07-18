@@ -1,5 +1,12 @@
 import { describeProviderError } from "./httpError";
-import type { ChatChunk, ChatRequest, ModelInfo, Provider, ProviderConfig, ProviderPreset } from "./types";
+import type { ChatChunk, ChatMessage, ChatRequest, ModelInfo, Provider, ProviderConfig, ProviderPreset } from "./types";
+
+function toOpenAIContent(content: ChatMessage["content"]) {
+  if (typeof content === "string") return content;
+  return content.map((part) =>
+    part.type === "text" ? { type: "text", text: part.text } : { type: "image_url", image_url: { url: part.dataUrl } },
+  );
+}
 
 interface OpenAIStreamChoice {
   delta?: { content?: string };
@@ -66,7 +73,7 @@ export class OpenAICompatibleProvider implements Provider {
       signal: request.signal,
       body: JSON.stringify({
         model: request.model,
-        messages: request.messages,
+        messages: request.messages.map((message) => ({ role: message.role, content: toOpenAIContent(message.content) })),
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         stream: true,

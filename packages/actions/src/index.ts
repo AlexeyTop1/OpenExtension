@@ -12,6 +12,9 @@ import { improveSelection } from "./builtins/improveSelection";
 import { longerSelection } from "./builtins/longerSelection";
 import { shorterSelection } from "./builtins/shorterSelection";
 import { translateSelection } from "./builtins/translateSelection";
+import { describeImage } from "./builtins/describeImage";
+import { extractImageText } from "./builtins/extractImageText";
+import { generateAltText } from "./builtins/generateAltText";
 import type { ActionDefinition } from "./types";
 
 export * from "./types";
@@ -32,6 +35,9 @@ export {
   longerSelection,
   fixGrammarSelection,
   customPromptSelection,
+  describeImage,
+  extractImageText,
+  generateAltText,
 };
 
 export const PAGE_ACTIONS: ActionDefinition[] = [
@@ -52,3 +58,5 @@ export const SELECTION_ACTIONS: ActionDefinition[] = [
   fixGrammarSelection,
   customPromptSelection,
 ];
+
+export const IMAGE_ACTIONS: ActionDefinition[] = [describeImage, extractImageText, generateAltText];

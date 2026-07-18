@@ -12,7 +12,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { createProvider, PROVIDER_PRESETS, type ChatMessage } from "@openextension/providers";
+import { createProvider, PROVIDER_PRESETS, type ChatMessage, type MessageContentPart } from "@openextension/providers";
 import {
   askAboutPage,
   translatePage,
@@ -21,6 +21,7 @@ import {
   summarizeYoutube,
   runAction,
   PAGE_ACTIONS,
+  IMAGE_ACTIONS,
   type ActionDefinition,
 } from "@openextension/actions";
 import { SELECTION_ACTIONS } from "@openextension/actions";
@@ -40,6 +41,9 @@ import { pickDefaultProviderAndModel } from "./defaultProvider";
 import { detectLanguageCode, getPreferredLanguage } from "./preferredLanguage";
 import { consumePendingSelectionAction, onPendingSelectionAction } from "./pendingSelectionAction";
 import type { PendingSelectionAction } from "../shared/pendingSelectionAction";
+import { consumePendingImageAction, onPendingImageAction } from "./pendingImageAction";
+import type { PendingImageAction } from "../shared/pendingImageAction";
+import type { FetchImageDataUrlResponse } from "../shared/messaging/types";
 import { normalizeUrl } from "./normalizeUrl";
 import { parsePdfBytes } from "../shared/pdfParse";
 import { useActiveTabUrl } from "./useActiveTabUrl";
@@ -123,14 +127,22 @@ export default function App() {
       // together, and `chat` state from this render is still null — sequencing
       // alone isn't enough since setChat() only lands on a *future* render.
       const activeChat = await bootstrap();
-      const pending = await consumePendingSelectionAction();
-      if (pending) await handleRunSelectionAction(pending, activeChat);
+      const pendingSelection = await consumePendingSelectionAction();
+      if (pendingSelection) await handleRunSelectionAction(pendingSelection, activeChat);
+      const pendingImage = await consumePendingImageAction();
+      if (pendingImage) await handleRunImageAction(pendingImage, activeChat);
     })();
 
-    const unsubscribe = onPendingSelectionAction((pending) => {
+    const unsubscribeSelection = onPendingSelectionAction((pending) => {
       void handleRunSelectionAction(pending);
     });
-    return unsubscribe;
+    const unsubscribeImage = onPendingImageAction((pending) => {
+      void handleRunImageAction(pending);
+    });
+    return () => {
+      unsubscribeSelection();
+      unsubscribeImage();
+    };
   }, []);
 
   async function refreshChats(): Promise<Chat[]> {
@@ -360,6 +372,37 @@ export default function App() {
     maybeRememberReplaceTarget(await handleSend(message.content, activeChat));
   }
 
+  async function handleRunImageAction(pending: PendingImageAction, activeChat?: Chat) {
+    const { actionId, imageUrl, tabId } = pending;
+    const action = IMAGE_ACTIONS.find((candidate) => candidate.id === actionId);
+    if (!action) return;
+
+    const targetChat = activeChat ?? chatRef.current;
+    const preset = targetChat && PROVIDER_PRESETS.find((candidate) => candidate.id === targetChat.providerId);
+    if (preset && preset.supportsVision === false) {
+      setError(`${preset.label} doesn't support image input — switch to OpenAI, Anthropic, or Gemini for image actions.`);
+      return;
+    }
+
+    let response: FetchImageDataUrlResponse;
+    try {
+      response = (await chrome.tabs.sendMessage(tabId, {
+        type: "FETCH_IMAGE_DATA_URL",
+        imageUrl,
+      })) as FetchImageDataUrlResponse;
+    } catch {
+      setError("Couldn't reach that page to read the image — try again.");
+      return;
+    }
+    if ("error" in response) {
+      setError(response.error);
+      return;
+    }
+
+    const [message] = runAction(action, { image: { dataUrl: response.dataUrl } });
+    await handleSend(message.content, activeChat);
+  }
+
   async function handleReplace(messageId: string, text: string) {
     if (!replaceTarget || replaceTarget.messageId !== messageId) return;
     try {
@@ -443,7 +486,7 @@ export default function App() {
     await streamAssistantReply(targetChat, history);
   }
 
-  async function handleSend(text: string, activeChat?: Chat): Promise<Message | null> {
+  async function handleSend(text: string | MessageContentPart[], activeChat?: Chat): Promise<Message | null> {
     const targetChat = activeChat ?? chatRef.current;
     if (!targetChat || isSendingRef.current) return null;
     setError(null);
@@ -456,16 +499,17 @@ export default function App() {
       return null;
     }
 
-    const finalText = pendingAction
-      ? runAction(pendingAction.action, {
-          page: pendingAction.page,
-          selection: pendingAction.selection,
-          input: text,
-        })[0].content
-      : text;
+    const finalContent =
+      pendingAction && typeof text === "string"
+        ? runAction(pendingAction.action, {
+            page: pendingAction.page,
+            selection: pendingAction.selection,
+            input: text,
+          })[0].content
+        : text;
     setPendingAction(null);
 
-    await appendMessage(targetChat.id, { role: "user", content: finalText });
+    await appendMessage(targetChat.id, { role: "user", content: finalContent });
     // Always reread from storage rather than trusting the `messages` closure:
     // callers reached through the long-lived storage.onChanged subscription (see
     // chatRef above) can have a stale `messages` snapshot too. appendMessage
