@@ -1,5 +1,9 @@
 # OpenExtension
 
+[![License: MIT](https://img.shields.io/github/license/AlexeyTop1/OpenExtension)](./LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/AlexeyTop1/OpenExtension)](https://github.com/AlexeyTop1/OpenExtension/releases)
+![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue)
+
 **Bring your own AI. Any provider, any site.**
 
 OpenExtension is an open-source browser sidebar that turns any website into an AI-enabled one — without waiting for that site to build an integration, and without being locked into one AI provider.
@@ -26,9 +30,13 @@ Most AI browser extensions lock you into one model and one vendor. OpenExtension
 
 See [the roadmap](#roadmap) for what's next.
 
-## Install (from source)
+## Install
 
-OpenExtension isn't on the Chrome Web Store yet. To try it:
+OpenExtension isn't on the Chrome Web Store yet. Two ways to try it:
+
+**Prebuilt** — download the `dist.zip` from the [latest release](https://github.com/AlexeyTop1/OpenExtension/releases/latest) and unzip it.
+
+**From source**:
 
 ```bash
 git clone https://github.com/AlexeyTop1/OpenExtension.git
@@ -37,7 +45,7 @@ pnpm install
 pnpm build
 ```
 
-Then in Chrome: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select `apps/extension/dist`.
+Either way, load it in Chrome: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the unzipped folder (or `apps/extension/dist` if you built from source).
 
 ## Development
 
