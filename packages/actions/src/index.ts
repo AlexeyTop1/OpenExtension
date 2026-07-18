@@ -3,6 +3,7 @@ import { explainPage } from "./builtins/explainPage";
 import { findIssues } from "./builtins/findIssues";
 import { rewritePage } from "./builtins/rewritePage";
 import { summarizePage } from "./builtins/summarizePage";
+import { summarizeYoutube } from "./builtins/summarizeYoutube";
 import { translatePage } from "./builtins/translatePage";
 import { customPromptSelection } from "./builtins/customPromptSelection";
 import { explainSelection } from "./builtins/explainSelection";
@@ -19,6 +20,7 @@ export * from "./formatPage";
 export {
   explainPage,
   summarizePage,
+  summarizeYoutube,
   translatePage,
   rewritePage,
   findIssues,

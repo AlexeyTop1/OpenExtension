@@ -1,6 +1,7 @@
-import { extractReadableContent, type ContextField, type PageContext } from "@openextension/context";
+import { extractReadableContent, isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
+import { scrapeYoutubeTranscript } from "./youtubeTranscript";
 
-export function extractRequestedContext(fields: ContextField[]): Partial<PageContext> {
+export async function extractRequestedContext(fields: ContextField[]): Promise<Partial<PageContext>> {
   const result: Partial<PageContext> = { extractedAt: Date.now() };
 
   if (fields.includes("url")) {
@@ -25,6 +26,16 @@ export function extractRequestedContext(fields: ContextField[]): Partial<PageCon
 
   if (fields.includes("selection")) {
     result.selection = window.getSelection()?.toString() || "";
+  }
+
+  if (fields.includes("youtubeTranscript") && isYoutubeWatchUrl(location.href)) {
+    const transcript = await scrapeYoutubeTranscript().catch((error: unknown) => {
+      console.warn("[OpenExtension] YouTube transcript extraction threw.", error);
+      return null;
+    });
+    if (transcript) {
+      result.youtubeTranscript = transcript;
+    }
   }
 
   return result;

@@ -6,5 +6,8 @@ export function formatPage(page?: Partial<PageContext>): string {
   if (page.markdown) {
     lines.push("", page.markdown);
   }
+  if (page.youtubeTranscript) {
+    lines.push("", "Transcript:", page.youtubeTranscript);
+  }
   return lines.join("\n");
 }

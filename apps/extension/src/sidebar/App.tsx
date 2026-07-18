@@ -17,12 +17,13 @@ import {
   translatePage,
   translateSelection,
   customPromptSelection,
+  summarizeYoutube,
   runAction,
   PAGE_ACTIONS,
   type ActionDefinition,
 } from "@openextension/actions";
 import { SELECTION_ACTIONS } from "@openextension/actions";
-import type { ContextField, PageContext } from "@openextension/context";
+import { isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
 import {
   appendMessage,
   createChat,
@@ -74,6 +75,7 @@ export default function App() {
 
   const activeTabUrl = useActiveTabUrl();
   const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
+  const contextualActions = activeTabUrl && isYoutubeWatchUrl(activeTabUrl) ? [summarizeYoutube] : [];
   const pinnedChat = normalizedCurrentUrl
     ? chats.find((candidate) => candidate.pinnedUrl === normalizedCurrentUrl && candidate.id !== chat?.id)
     : undefined;
@@ -208,6 +210,11 @@ export default function App() {
 
   async function handleRunPageAction(action: ActionDefinition, argumentOverride?: string) {
     const page = await fetchPageContext(action.requiredFields);
+
+    if (action.id === summarizeYoutube.id && !page.youtubeTranscript) {
+      setError("This video doesn't have captions available, so it can't be summarized from a transcript.");
+      return;
+    }
 
     if (action.id === askAboutPage.id) {
       if (argumentOverride) {
@@ -514,13 +521,14 @@ export default function App() {
             onRunAction={handleRunPageAction}
             disabled={isSending}
             translateTargetLanguage={translateTargetLanguage}
+            extraActions={contextualActions}
           />
 
           <PromptBox
             onSend={handleSend}
             onCommand={handleSlashCommand}
             onStop={handleStop}
-            commands={PAGE_ACTIONS}
+            commands={[...contextualActions, ...PAGE_ACTIONS]}
             disabled={isSending}
           />
         </>
