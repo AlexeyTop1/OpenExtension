@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "youtube": {
+    "transcriptButtonSelector": "ytd-video-description-transcript-section-renderer button",
+    "transcriptButtonAriaLabelPattern": "transcript",
+    "segmentSelector": "transcript-segment-view-model",
+    "segmentTextSelector": ".ytAttributedStringHost"
+  },
+  "github": {
+    "newUi": {
+      "tableSelector": "table[aria-label^=\"Diff for:\"]",
+      "pathAttrPrefix": "Diff for:",
+      "additionLineSelector": ".diff-text.addition",
+      "deletionLineSelector": ".diff-text.deletion",
+      "additionClass": "addition",
+      "codeInnerSelector": ".diff-text-inner"
+    },
+    "classicUi": {
+      "fileSelector": ".file[data-tagsearch-path]",
+      "filePathAttr": "data-tagsearch-path",
+      "additionLineSelector": ".blob-code-addition",
+      "deletionLineSelector": ".blob-code-deletion",
+      "additionClass": "blob-code-addition"
+    }
+  }
+}

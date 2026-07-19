@@ -3,10 +3,24 @@ import type { ContextField, PageContext } from "@openextension/context";
 import type { ExtensionMessage } from "../shared/messaging/types";
 import { PENDING_IMAGE_ACTION_KEY } from "../shared/pendingImageAction";
 import { PENDING_SELECTION_ACTION_KEY } from "../shared/pendingSelectionAction";
+import { refreshSelectorConfig } from "../shared/selectorConfigStorage";
 
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((error) => console.error("Failed to set side panel behavior", error));
+
+// Site DOM selectors (YouTube transcript, GitHub diff, ...) live in a remote
+// JSON file so a broken selector can be fixed by updating that file instead
+// of shipping a new extension version — see shared/selectorConfig.ts. Refresh
+// on install/update/browser-startup so a fresh install doesn't wait 4h for
+// the first pull, then every 4h after that via the alarm.
+const SELECTOR_CONFIG_ALARM = "refresh-selector-config";
+chrome.alarms.create(SELECTOR_CONFIG_ALARM, { periodInMinutes: 240 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === SELECTOR_CONFIG_ALARM) void refreshSelectorConfig();
+});
+chrome.runtime.onInstalled.addListener(() => void refreshSelectorConfig());
+chrome.runtime.onStartup.addListener(() => void refreshSelectorConfig());
 
 chrome.contextMenus.removeAll(() => {
   for (const action of SELECTION_ACTIONS) {

@@ -43,7 +43,10 @@ export async function extractRequestedContext(fields: ContextField[]): Promise<P
   }
 
   if (fields.includes("githubDiff")) {
-    result.githubDiff = extractGithubDiff() ?? undefined;
+    result.githubDiff = (await extractGithubDiff().catch((error: unknown) => {
+      console.warn("[OpenExtension] GitHub diff extraction threw.", error);
+      return null;
+    })) ?? undefined;
   }
 
   if (fields.includes("youtubeTranscript") && isYoutubeWatchUrl(location.href)) {

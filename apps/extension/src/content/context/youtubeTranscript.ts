@@ -10,7 +10,12 @@
 // `.ytAttributedStringHost` span holding the actual spoken text. deepQueryAll
 // is kept as a fallback in case YouTube ever moves this back into Shadow DOM
 // (as some of their older ytd-* Polymer components do) or A/B-tests a
-// different render path.
+// different render path. The actual selector strings live in
+// shared/selectorConfig.ts (remotely refreshable — see selectorConfigStorage.ts)
+// rather than being hardcoded here, so a future breakage can be fixed by
+// updating selectors/config.json instead of shipping a new build.
+
+import { getSelectorConfig } from "../../shared/selectorConfigStorage";
 
 const BUTTON_WAIT_MS = 4000;
 const SEGMENTS_WAIT_MS = 8000;
@@ -36,44 +41,47 @@ function deepQueryAll(root: ParentNode, selector: string): Element[] {
   return found;
 }
 
-function findTranscriptButton(): HTMLElement | null {
-  const scoped = deepQueryAll(document, "ytd-video-description-transcript-section-renderer button")[0];
+function findTranscriptButton(selectors: { buttonSelector: string; ariaLabelPattern: string }): HTMLElement | null {
+  const scoped = deepQueryAll(document, selectors.buttonSelector)[0];
   if (scoped instanceof HTMLElement) return scoped;
 
-  const byAriaLabel = deepQueryAll(document, "button").find((btn) =>
-    /transcript/i.test(btn.getAttribute("aria-label") ?? ""),
-  );
+  const pattern = new RegExp(selectors.ariaLabelPattern, "i");
+  const byAriaLabel = deepQueryAll(document, "button").find((btn) => pattern.test(btn.getAttribute("aria-label") ?? ""));
   return byAriaLabel instanceof HTMLElement ? byAriaLabel : null;
 }
 
-function readTranscriptSegments(): string[] | null {
-  let hosts: Element[] = Array.from(document.querySelectorAll("transcript-segment-view-model"));
+function readTranscriptSegments(selectors: { segmentSelector: string; textSelector: string }): string[] | null {
+  let hosts: Element[] = Array.from(document.querySelectorAll(selectors.segmentSelector));
   if (!hosts.length) {
-    hosts = deepQueryAll(document, "transcript-segment-view-model");
+    hosts = deepQueryAll(document, selectors.segmentSelector);
   }
   if (!hosts.length) return null;
 
   const texts = hosts
-    .map((host) => host.querySelector(".ytAttributedStringHost")?.textContent?.trim() ?? "")
+    .map((host) => host.querySelector(selectors.textSelector)?.textContent?.trim() ?? "")
     .filter(Boolean);
 
   return texts.length ? texts : null;
 }
 
 export async function scrapeYoutubeTranscript(): Promise<string | null> {
-  const alreadyOpen = readTranscriptSegments();
+  const config = (await getSelectorConfig()).youtube;
+  const buttonSelectors = { buttonSelector: config.transcriptButtonSelector, ariaLabelPattern: config.transcriptButtonAriaLabelPattern };
+  const segmentSelectors = { segmentSelector: config.segmentSelector, textSelector: config.segmentTextSelector };
+
+  const alreadyOpen = readTranscriptSegments(segmentSelectors);
   if (alreadyOpen?.length) {
     return alreadyOpen.join(" ").replace(/\s+/g, " ").trim() || null;
   }
 
-  const button = await waitFor(findTranscriptButton, BUTTON_WAIT_MS);
+  const button = await waitFor(() => findTranscriptButton(buttonSelectors), BUTTON_WAIT_MS);
   if (!button) {
     console.warn("[OpenExtension] Could not find the 'Show transcript' button — this video may not have captions.");
     return null;
   }
   button.click();
 
-  const segments = await waitFor(readTranscriptSegments, SEGMENTS_WAIT_MS);
+  const segments = await waitFor(() => readTranscriptSegments(segmentSelectors), SEGMENTS_WAIT_MS);
   if (!segments?.length) {
     console.warn("[OpenExtension] Clicked the transcript button but no segments appeared in time.");
     return null;
