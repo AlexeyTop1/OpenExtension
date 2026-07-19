@@ -55,6 +55,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     kind: "openai-compatible",
     baseUrl: "https://api.deepseek.com/v1",
     requiresApiKey: true,
+    supportsVision: false,
     fallbackModels: [
       { id: "deepseek-chat", label: "DeepSeek Chat (V3)" },
       { id: "deepseek-reasoner", label: "DeepSeek Reasoner (R1)" },

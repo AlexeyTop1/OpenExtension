@@ -18,7 +18,9 @@ Most AI browser extensions lock you into one model and one vendor. OpenExtension
 - **Developer-first** — a small set of typed packages (`providers`, `context`, `actions`) instead of one monolithic app, so adding a provider or an action is a focused, self-contained change.
 - **Works everywhere** — page and text-selection actions work on any site via a generic content-script context API, not a list of specifically-supported domains.
 
-## Features (MVP v0.1)
+## Features
+
+**Core (v0.1)**
 
 - **Sidebar chat** with streaming responses, chat history, rename/delete, and pinning a chat to a specific page (origin + path) so you can pick it back up later.
 - **9 providers**: OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, Groq, Ollama, LM Studio, and a generic OpenAI-compatible endpoint. Model switcher works mid-chat.
@@ -26,6 +28,14 @@ Most AI browser extensions lock you into one model and one vendor. OpenExtension
 - **Selection actions**: a floating toolbar (and right-click menu) on any selected text — Explain, Translate, Improve, Shorter, Longer, Fix grammar, Custom prompt. The rewrite-style actions can write the result straight back into the field you selected it from.
 - **Slash commands** in the prompt box (`/explain`, `/translate`, `/ask`, …) — a third way into the same actions as the buttons and the selection toolbar.
 - **Chat controls**: stop generation mid-stream, regenerate the last reply, copy any message.
+
+**Site integrations (v0.2)**
+
+- **PDF Q&A** — every Page Action works on PDFs, including local files (via a file picker, since browser extensions can't read `file://` URLs without a permission most people don't want to grant).
+- **Images** — right-click any image for Describe, Extract text (OCR), or Generate alt text (needs a vision-capable model).
+- **YouTube** — summarize a video from its transcript.
+- **GitHub** — summarize a pull request's diff, or explain a file you're viewing.
+- **Gmail** — summarize an open thread, or draft a reply and insert it into the compose box with one click (never sent automatically — you review and send).
 - No telemetry, no analytics, no backend — everything runs client-side and talks directly to the provider you configured.
 
 See [the roadmap](#roadmap) for what's next.
@@ -69,7 +79,7 @@ Chat streaming happens in the sidebar itself, not the background service worker 
 
 ## Roadmap
 
-MVP (v0.1, everything listed under Features above) is done. Next up: PDF Q&A, image context-menu actions, YouTube summarization, and Gmail/GitHub helpers.
+v0.1 (core) and v0.2 (site integrations) are both done — see Features above. Next up (v0.3): a Prompt Library for user-defined slash actions, a Marketplace for sharing them, and voice input via the browser's built-in Web Speech API.
 
 ## Contributing
 
@@ -80,6 +90,7 @@ Issues and PRs are welcome — this is early and the architecture is still settl
 - No telemetry, no analytics, no accounts.
 - API keys are stored in `chrome.storage.local` **unencrypted**, similar to a saved browser password — don't use OpenExtension on a shared or untrusted profile. Keys are sent only directly to the provider you configured them for.
 - The extension requests a specific provider's network permission only when you save a key for it, not upfront for every supported provider.
+- The extension does have one unconditional network permission: it periodically fetches a small JSON file from this repo (`selectors/config.json`) so that a broken site selector (YouTube/GitHub/Gmail changing their markup) can be fixed by updating that file instead of shipping a new release. It's validated as plain strings before use and never treated as executable code.
 
 ## License
 

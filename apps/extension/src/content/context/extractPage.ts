@@ -1,6 +1,11 @@
-import { extractReadableContent, type ContextField, type PageContext } from "@openextension/context";
+import { extractReadableContent, isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
+import { extractGithubDiff } from "./githubDiff";
+import { extractGithubFile } from "./githubFile";
+import { extractGmailThread } from "./gmailThread";
+import { extractPdfText, getPdfFileName, isLocalPdf, isPdfDocument } from "./pdfText";
+import { scrapeYoutubeTranscript } from "./youtubeTranscript";
 
-export function extractRequestedContext(fields: ContextField[]): Partial<PageContext> {
+export async function extractRequestedContext(fields: ContextField[]): Promise<Partial<PageContext>> {
   const result: Partial<PageContext> = { extractedAt: Date.now() };
 
   if (fields.includes("url")) {
@@ -10,7 +15,19 @@ export function extractRequestedContext(fields: ContextField[]): Partial<PageCon
     result.title = document.title;
   }
 
-  if (fields.includes("markdown") || fields.includes("html")) {
+  if (fields.includes("markdown") && isPdfDocument()) {
+    if (isLocalPdf()) {
+      result.localPdfName = getPdfFileName();
+    } else {
+      // The PDF's actual content lives inside Chrome's built-in viewer, which
+      // we have no DOM access to — Readability would find nothing useful on
+      // this wrapper page, so we fetch and parse the PDF's own bytes instead.
+      result.markdown = (await extractPdfText().catch((error: unknown) => {
+        console.warn("[OpenExtension] PDF text extraction threw.", error);
+        return null;
+      })) ?? undefined;
+    }
+  } else if (fields.includes("markdown") || fields.includes("html")) {
     const readable = extractReadableContent(document);
     if (readable) {
       result.title = result.title ?? readable.title;
@@ -25,6 +42,37 @@ export function extractRequestedContext(fields: ContextField[]): Partial<PageCon
 
   if (fields.includes("selection")) {
     result.selection = window.getSelection()?.toString() || "";
+  }
+
+  if (fields.includes("githubDiff")) {
+    result.githubDiff = (await extractGithubDiff().catch((error: unknown) => {
+      console.warn("[OpenExtension] GitHub diff extraction threw.", error);
+      return null;
+    })) ?? undefined;
+  }
+
+  if (fields.includes("githubFile")) {
+    result.githubFile = (await extractGithubFile().catch((error: unknown) => {
+      console.warn("[OpenExtension] GitHub file extraction threw.", error);
+      return null;
+    })) ?? undefined;
+  }
+
+  if (fields.includes("emailThread")) {
+    result.emailThread = (await extractGmailThread().catch((error: unknown) => {
+      console.warn("[OpenExtension] Gmail thread extraction threw.", error);
+      return null;
+    })) ?? undefined;
+  }
+
+  if (fields.includes("youtubeTranscript") && isYoutubeWatchUrl(location.href)) {
+    const transcript = await scrapeYoutubeTranscript().catch((error: unknown) => {
+      console.warn("[OpenExtension] YouTube transcript extraction threw.", error);
+      return null;
+    });
+    if (transcript) {
+      result.youtubeTranscript = transcript;
+    }
   }
 
   return result;

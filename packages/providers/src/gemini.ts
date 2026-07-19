@@ -1,12 +1,23 @@
+import { parseDataUrl, stripImagesForTextOnlyProvider, textOnly } from "./contentParts";
 import { describeProviderError } from "./httpError";
 import type {
   ChatChunk,
+  ChatMessage,
   ChatRequest,
   ModelInfo,
   Provider,
   ProviderConfig,
   ProviderPreset,
 } from "./types";
+
+function toGeminiParts(content: ChatMessage["content"]) {
+  if (typeof content === "string") return [{ text: content }];
+  return content.map((part) => {
+    if (part.type === "text") return { text: part.text };
+    const { mediaType, base64 } = parseDataUrl(part.dataUrl);
+    return { inlineData: { mimeType: mediaType, data: base64 } };
+  });
+}
 
 interface GeminiStreamChunk {
   candidates?: Array<{
@@ -29,12 +40,14 @@ export class GeminiProvider implements Provider {
   private baseUrl: string;
   private apiKey?: string;
   private readonly fallbackModels: ModelInfo[];
+  private readonly supportsVision?: false;
 
   constructor(preset: ProviderPreset) {
     this.id = preset.id;
     this.label = preset.label;
     this.baseUrl = preset.baseUrl;
     this.fallbackModels = preset.fallbackModels;
+    this.supportsVision = preset.supportsVision;
   }
 
   configure(config: ProviderConfig): void {
@@ -74,13 +87,16 @@ export class GeminiProvider implements Provider {
   async *chat(request: ChatRequest): AsyncIterable<ChatChunk> {
     const systemText = request.messages
       .filter((message) => message.role === "system")
-      .map((message) => message.content)
+      .map((message) => textOnly(message.content))
       .join("\n\n");
     const contents = request.messages
       .filter((message) => message.role !== "system")
       .map((message) => ({
         role: message.role === "assistant" ? "model" : "user",
-        parts: [{ text: message.content }],
+        parts:
+          this.supportsVision === false
+            ? [{ text: stripImagesForTextOnlyProvider(message.content) }]
+            : toGeminiParts(message.content),
       }));
 
     const res = await fetch(`${this.baseUrl}/models/${request.model}:streamGenerateContent?alt=sse`, {

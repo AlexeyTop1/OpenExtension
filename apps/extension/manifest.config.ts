@@ -22,7 +22,11 @@ export default defineManifest({
       run_at: "document_idle",
     },
   ],
-  permissions: ["storage", "sidePanel", "tabs", "contextMenus"],
+  permissions: ["storage", "sidePanel", "tabs", "contextMenus", "alarms"],
+  // Not optional: needed unconditionally so the remote selector-config refresh
+  // (see shared/selectorConfigStorage.ts) works for everyone without asking —
+  // it only ever reads a static JSON file from our own repo.
+  host_permissions: ["https://raw.githubusercontent.com/AlexeyTop1/OpenExtension/*"],
   optional_host_permissions: [
     "https://api.openai.com/*",
     "https://api.anthropic.com/*",

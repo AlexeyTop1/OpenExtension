@@ -8,21 +8,35 @@ import {
   Plus,
   Puzzle,
   Scissors,
+  Upload,
   X,
   type LucideIcon,
 } from "lucide-react";
-import { createProvider, PROVIDER_PRESETS, type ChatMessage } from "@openextension/providers";
+import { createProvider, PROVIDER_PRESETS, type ChatMessage, type MessageContentPart } from "@openextension/providers";
 import {
   askAboutPage,
   translatePage,
   translateSelection,
   customPromptSelection,
+  summarizeYoutube,
+  summarizeGithubDiff,
+  explainGithubFile,
+  summarizeGmailThread,
+  draftGmailReply,
   runAction,
   PAGE_ACTIONS,
+  IMAGE_ACTIONS,
   type ActionDefinition,
 } from "@openextension/actions";
 import { SELECTION_ACTIONS } from "@openextension/actions";
-import type { ContextField, PageContext } from "@openextension/context";
+import {
+  isGithubFileUrl,
+  isGithubPRUrl,
+  isGmailThreadUrl,
+  isYoutubeWatchUrl,
+  type ContextField,
+  type PageContext,
+} from "@openextension/context";
 import {
   appendMessage,
   createChat,
@@ -38,7 +52,11 @@ import { pickDefaultProviderAndModel } from "./defaultProvider";
 import { detectLanguageCode, getPreferredLanguage } from "./preferredLanguage";
 import { consumePendingSelectionAction, onPendingSelectionAction } from "./pendingSelectionAction";
 import type { PendingSelectionAction } from "../shared/pendingSelectionAction";
+import { consumePendingImageAction, onPendingImageAction } from "./pendingImageAction";
+import type { PendingImageAction } from "../shared/pendingImageAction";
+import type { FetchImageDataUrlResponse } from "../shared/messaging/types";
 import { normalizeUrl } from "./normalizeUrl";
+import { parsePdfBytes } from "../shared/pdfParse";
 import { useActiveTabUrl } from "./useActiveTabUrl";
 import ChatHistoryList from "./components/ChatHistoryList";
 import MessageList from "./components/MessageList";
@@ -70,10 +88,33 @@ export default function App() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [dismissedPinId, setDismissedPinId] = useState<string | null>(null);
-  const [replaceTarget, setReplaceTarget] = useState<{ messageId: string; tabId: number } | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<
+    | { kind: "selection"; messageId: string; tabId: number }
+    | { kind: "gmailCompose"; messageId: string; tabId: number }
+    | null
+  >(null);
+  const [pendingLocalPdf, setPendingLocalPdf] = useState<{
+    fileName: string;
+    page: Partial<PageContext>;
+    action: ActionDefinition;
+    argumentOverride?: string;
+  } | null>(null);
+  const localPdfInputRef = useRef<HTMLInputElement | null>(null);
+  // Keyed by page URL so re-running an action (or a different Page Action) on
+  // the same local PDF doesn't ask the user to re-pick the file — cleared
+  // when the side panel closes, which is an acceptable "for this session" scope.
+  const localPdfTextCacheRef = useRef<Map<string, string>>(new Map());
 
   const activeTabUrl = useActiveTabUrl();
   const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
+  const contextualActions = activeTabUrl
+    ? [
+        ...(isYoutubeWatchUrl(activeTabUrl) ? [summarizeYoutube] : []),
+        ...(isGithubPRUrl(activeTabUrl) ? [summarizeGithubDiff] : []),
+        ...(isGithubFileUrl(activeTabUrl) ? [explainGithubFile] : []),
+        ...(isGmailThreadUrl(activeTabUrl) ? [summarizeGmailThread, draftGmailReply] : []),
+      ]
+    : [];
   const pinnedChat = normalizedCurrentUrl
     ? chats.find((candidate) => candidate.pinnedUrl === normalizedCurrentUrl && candidate.id !== chat?.id)
     : undefined;
@@ -108,14 +149,22 @@ export default function App() {
       // together, and `chat` state from this render is still null — sequencing
       // alone isn't enough since setChat() only lands on a *future* render.
       const activeChat = await bootstrap();
-      const pending = await consumePendingSelectionAction();
-      if (pending) await handleRunSelectionAction(pending, activeChat);
+      const pendingSelection = await consumePendingSelectionAction();
+      if (pendingSelection) await handleRunSelectionAction(pendingSelection, activeChat);
+      const pendingImage = await consumePendingImageAction();
+      if (pendingImage) await handleRunImageAction(pendingImage, activeChat);
     })();
 
-    const unsubscribe = onPendingSelectionAction((pending) => {
+    const unsubscribeSelection = onPendingSelectionAction((pending) => {
       void handleRunSelectionAction(pending);
     });
-    return unsubscribe;
+    const unsubscribeImage = onPendingImageAction((pending) => {
+      void handleRunImageAction(pending);
+    });
+    return () => {
+      unsubscribeSelection();
+      unsubscribeImage();
+    };
   }, []);
 
   async function refreshChats(): Promise<Chat[]> {
@@ -209,6 +258,77 @@ export default function App() {
   async function handleRunPageAction(action: ActionDefinition, argumentOverride?: string) {
     const page = await fetchPageContext(action.requiredFields);
 
+    if (page.localPdfName) {
+      const cached = page.url ? localPdfTextCacheRef.current.get(page.url) : undefined;
+      if (cached) {
+        await runPageActionWithContext(action, { ...page, markdown: cached }, argumentOverride);
+        return;
+      }
+      // No extension context can read a local file's bytes without the user
+      // manually flipping "Allow access to file URLs" — instead, ask them to
+      // pick the same file via a normal <input type="file">, which needs no
+      // special permission at all.
+      setPendingLocalPdf({ fileName: page.localPdfName, page, action, argumentOverride });
+      return;
+    }
+
+    await runPageActionWithContext(action, page, argumentOverride);
+  }
+
+  async function handleLocalPdfFileSelected(file: File) {
+    if (!pendingLocalPdf) return;
+    const { page, action, argumentOverride } = pendingLocalPdf;
+    setPendingLocalPdf(null);
+    try {
+      const text = await parsePdfBytes(await file.arrayBuffer());
+      if (!text) {
+        setError("Couldn't find any text in that PDF — it might be a scanned/image-only document.");
+        return;
+      }
+      if (page.url) localPdfTextCacheRef.current.set(page.url, text);
+      await runPageActionWithContext(action, { ...page, markdown: text }, argumentOverride);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Couldn't read that PDF.");
+    }
+  }
+
+  async function runPageActionWithContext(
+    action: ActionDefinition,
+    page: Partial<PageContext>,
+    argumentOverride?: string,
+  ) {
+    if (action.id === summarizeYoutube.id && !page.youtubeTranscript) {
+      setError("This video doesn't have captions available, so it can't be summarized from a transcript.");
+      return;
+    }
+
+    if (action.id === summarizeGithubDiff.id && !page.githubDiff) {
+      setError('No file changes found on this page — open the "Files changed" tab first.');
+      return;
+    }
+
+    if (action.id === explainGithubFile.id && !page.githubFile) {
+      setError("Couldn't read this file's content — try reloading the page.");
+      return;
+    }
+
+    if ((action.id === summarizeGmailThread.id || action.id === draftGmailReply.id) && !page.emailThread) {
+      setError("Couldn't find an open email on this page — open a thread first.");
+      return;
+    }
+
+    if (action.id === draftGmailReply.id) {
+      const [message] = runAction(action, { page });
+      const result = await handleSend(message.content);
+      if (result) {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id !== undefined) {
+          setReplaceTarget({ kind: "gmailCompose", messageId: result.id, tabId: tab.id });
+        }
+      }
+      return;
+    }
+
     if (action.id === askAboutPage.id) {
       if (argumentOverride) {
         const [message] = runAction(action, { page, input: argumentOverride });
@@ -265,7 +385,7 @@ export default function App() {
 
     const maybeRememberReplaceTarget = (assistantMessage: Message | null) => {
       if (assistantMessage && isReplaceable && action.supportsReplace) {
-        setReplaceTarget({ messageId: assistantMessage.id, tabId });
+        setReplaceTarget({ kind: "selection", messageId: assistantMessage.id, tabId });
       }
     };
 
@@ -301,13 +421,54 @@ export default function App() {
     maybeRememberReplaceTarget(await handleSend(message.content, activeChat));
   }
 
+  async function handleRunImageAction(pending: PendingImageAction, activeChat?: Chat) {
+    const { actionId, imageUrl, tabId } = pending;
+    const action = IMAGE_ACTIONS.find((candidate) => candidate.id === actionId);
+    if (!action) return;
+
+    const targetChat = activeChat ?? chatRef.current;
+    const preset = targetChat && PROVIDER_PRESETS.find((candidate) => candidate.id === targetChat.providerId);
+    if (preset && preset.supportsVision === false) {
+      setError(`${preset.label} doesn't support image input — switch to OpenAI, Anthropic, or Gemini for image actions.`);
+      return;
+    }
+
+    let response: FetchImageDataUrlResponse;
+    try {
+      response = (await chrome.tabs.sendMessage(tabId, {
+        type: "FETCH_IMAGE_DATA_URL",
+        imageUrl,
+      })) as FetchImageDataUrlResponse;
+    } catch {
+      setError("Couldn't reach that page to read the image — try again.");
+      return;
+    }
+    if ("error" in response) {
+      setError(response.error);
+      return;
+    }
+
+    const [message] = runAction(action, { image: { dataUrl: response.dataUrl } });
+    await handleSend(message.content, activeChat);
+  }
+
   async function handleReplace(messageId: string, text: string) {
     if (!replaceTarget || replaceTarget.messageId !== messageId) return;
+    const isGmail = replaceTarget.kind === "gmailCompose";
     try {
-      const ok = await chrome.tabs.sendMessage(replaceTarget.tabId, { type: "REPLACE_SELECTION", text });
-      if (!ok) setError("Couldn't find that text on the page anymore — try selecting it again.");
+      const ok = await chrome.tabs.sendMessage(
+        replaceTarget.tabId,
+        isGmail ? { type: "INSERT_GMAIL_REPLY", text } : { type: "REPLACE_SELECTION", text },
+      );
+      if (!ok) {
+        setError(
+          isGmail
+            ? "Couldn't find the Gmail reply box anymore — try clicking Reply again."
+            : "Couldn't find that text on the page anymore — try selecting it again.",
+        );
+      }
     } catch {
-      setError("Couldn't reach that page anymore — try selecting the text again.");
+      setError("Couldn't reach that page anymore — try again.");
     } finally {
       setReplaceTarget(null);
     }
@@ -384,7 +545,7 @@ export default function App() {
     await streamAssistantReply(targetChat, history);
   }
 
-  async function handleSend(text: string, activeChat?: Chat): Promise<Message | null> {
+  async function handleSend(text: string | MessageContentPart[], activeChat?: Chat): Promise<Message | null> {
     const targetChat = activeChat ?? chatRef.current;
     if (!targetChat || isSendingRef.current) return null;
     setError(null);
@@ -397,16 +558,17 @@ export default function App() {
       return null;
     }
 
-    const finalText = pendingAction
-      ? runAction(pendingAction.action, {
-          page: pendingAction.page,
-          selection: pendingAction.selection,
-          input: text,
-        })[0].content
-      : text;
+    const finalContent =
+      pendingAction && typeof text === "string"
+        ? runAction(pendingAction.action, {
+            page: pendingAction.page,
+            selection: pendingAction.selection,
+            input: text,
+          })[0].content
+        : text;
     setPendingAction(null);
 
-    await appendMessage(targetChat.id, { role: "user", content: finalText });
+    await appendMessage(targetChat.id, { role: "user", content: finalContent });
     // Always reread from storage rather than trusting the `messages` closure:
     // callers reached through the long-lived storage.onChanged subscription (see
     // chatRef above) can have a stale `messages` snapshot too. appendMessage
@@ -489,6 +651,7 @@ export default function App() {
             streamingText={streamingText}
             onRegenerate={handleRegenerate}
             replaceableMessageId={replaceTarget?.messageId ?? null}
+            replaceLabel={replaceTarget?.kind === "gmailCompose" ? "Insert into Gmail" : "Replace on page"}
             onReplace={handleReplace}
           />
 
@@ -497,6 +660,35 @@ export default function App() {
               {error}
             </div>
           )}
+
+          {pendingLocalPdf && (
+            <div className="chip chip-info" style={{ margin: "0 var(--space-3)" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-1)" }}>
+                <Upload className="icon" size={14} />
+                Local PDF — pick "{pendingLocalPdf.fileName}" to read it (nothing leaves your device except the
+                extracted text, sent only when you run an action)
+              </span>
+              <div style={{ display: "inline-flex", gap: "var(--space-2)" }}>
+                <button className="btn-ghost" onClick={() => localPdfInputRef.current?.click()}>
+                  Choose file
+                </button>
+                <button className="btn-ghost" onClick={() => setPendingLocalPdf(null)}>
+                  <X className="icon" size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+          <input
+            ref={localPdfInputRef}
+            type="file"
+            accept="application/pdf"
+            style={{ display: "none" }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void handleLocalPdfFileSelected(file);
+            }}
+          />
 
           {pendingAction && (
             <div className="chip chip-info" style={{ margin: "0 var(--space-3)" }}>
@@ -514,13 +706,14 @@ export default function App() {
             onRunAction={handleRunPageAction}
             disabled={isSending}
             translateTargetLanguage={translateTargetLanguage}
+            extraActions={contextualActions}
           />
 
           <PromptBox
             onSend={handleSend}
             onCommand={handleSlashCommand}
             onStop={handleStop}
-            commands={PAGE_ACTIONS}
+            commands={[...contextualActions, ...PAGE_ACTIONS]}
             disabled={isSending}
           />
         </>

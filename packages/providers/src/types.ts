@@ -1,6 +1,12 @@
+export type MessageContentPart = { type: "text"; text: string } | { type: "image"; dataUrl: string };
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  // A plain string for ordinary chat/action turns; an array of parts for
+  // multimodal turns (image actions attach a `data:` URL alongside the
+  // instruction text — every provider adapter normalizes this into its own
+  // wire format).
+  content: string | MessageContentPart[];
 }
 
 export interface ModelInfo {
@@ -50,4 +56,13 @@ export interface ProviderPreset {
   /** Whether the Options UI should let the user override baseUrl (local/self-hosted or fully custom endpoints). */
   editableBaseUrl?: boolean;
   fallbackModels: ModelInfo[];
+  /**
+   * Set to `false` only for providers with categorically no vision-capable
+   * models (e.g. DeepSeek). Left unset for providers that are mixed
+   * (OpenRouter/Groq/Ollama/LM Studio/Custom depend entirely on which model
+   * the user picked) — per-model vision detection isn't worth the constant
+   * upkeep, so those are just left to try and surface the provider's own
+   * error if the chosen model can't handle images.
+   */
+  supportsVision?: false;
 }
