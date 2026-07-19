@@ -31,6 +31,11 @@ export interface SelectorConfig {
       additionClass: string;
     };
   };
+  gmail: {
+    subjectSelector: string;
+    messageBodySelector: string;
+    senderNameSelector: string;
+  };
 }
 
 export const DEFAULT_SELECTOR_CONFIG: SelectorConfig = {
@@ -57,6 +62,11 @@ export const DEFAULT_SELECTOR_CONFIG: SelectorConfig = {
       deletionLineSelector: ".blob-code-deletion",
       additionClass: "blob-code-addition",
     },
+  },
+  gmail: {
+    subjectSelector: "h2.hP",
+    messageBodySelector: ".ii.gt .a3s.aiL",
+    senderNameSelector: ".gD",
   },
 };
 
@@ -110,6 +120,17 @@ export function isValidSelectorConfig(value: unknown): value is SelectorConfig {
     !isString(classicUi.additionLineSelector) ||
     !isString(classicUi.deletionLineSelector) ||
     !isString(classicUi.additionClass)
+  ) {
+    return false;
+  }
+
+  const gmail = v.gmail as Record<string, unknown> | undefined;
+  if (
+    typeof gmail !== "object" ||
+    gmail === null ||
+    !isString(gmail.subjectSelector) ||
+    !isString(gmail.messageBodySelector) ||
+    !isString(gmail.senderNameSelector)
   ) {
     return false;
   }

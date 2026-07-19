@@ -20,13 +20,14 @@ import {
   customPromptSelection,
   summarizeYoutube,
   summarizeGithubDiff,
+  summarizeGmailThread,
   runAction,
   PAGE_ACTIONS,
   IMAGE_ACTIONS,
   type ActionDefinition,
 } from "@openextension/actions";
 import { SELECTION_ACTIONS } from "@openextension/actions";
-import { isGithubPRUrl, isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
+import { isGithubPRUrl, isGmailThreadUrl, isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
 import {
   appendMessage,
   createChat,
@@ -97,6 +98,7 @@ export default function App() {
     ? [
         ...(isYoutubeWatchUrl(activeTabUrl) ? [summarizeYoutube] : []),
         ...(isGithubPRUrl(activeTabUrl) ? [summarizeGithubDiff] : []),
+        ...(isGmailThreadUrl(activeTabUrl) ? [summarizeGmailThread] : []),
       ]
     : [];
   const pinnedChat = normalizedCurrentUrl
@@ -288,6 +290,11 @@ export default function App() {
 
     if (action.id === summarizeGithubDiff.id && !page.githubDiff) {
       setError('No file changes found on this page — open the "Files changed" tab first.');
+      return;
+    }
+
+    if (action.id === summarizeGmailThread.id && !page.emailThread) {
+      setError("Couldn't find an open email on this page — open a thread first.");
       return;
     }
 

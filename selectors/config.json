@@ -22,5 +22,10 @@
       "deletionLineSelector": ".blob-code-deletion",
       "additionClass": "blob-code-addition"
     }
+  },
+  "gmail": {
+    "subjectSelector": "h2.hP",
+    "messageBodySelector": ".ii.gt .a3s.aiL",
+    "senderNameSelector": ".gD"
   }
 }

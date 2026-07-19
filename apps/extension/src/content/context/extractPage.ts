@@ -1,5 +1,6 @@
 import { extractReadableContent, isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
 import { extractGithubDiff } from "./githubDiff";
+import { extractGmailThread } from "./gmailThread";
 import { extractPdfText, getPdfFileName, isLocalPdf, isPdfDocument } from "./pdfText";
 import { scrapeYoutubeTranscript } from "./youtubeTranscript";
 
@@ -45,6 +46,13 @@ export async function extractRequestedContext(fields: ContextField[]): Promise<P
   if (fields.includes("githubDiff")) {
     result.githubDiff = (await extractGithubDiff().catch((error: unknown) => {
       console.warn("[OpenExtension] GitHub diff extraction threw.", error);
+      return null;
+    })) ?? undefined;
+  }
+
+  if (fields.includes("emailThread")) {
+    result.emailThread = (await extractGmailThread().catch((error: unknown) => {
+      console.warn("[OpenExtension] Gmail thread extraction threw.", error);
       return null;
     })) ?? undefined;
   }

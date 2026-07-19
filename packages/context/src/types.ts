@@ -6,7 +6,8 @@ export type ContextField =
   | "selection"
   | "images"
   | "youtubeTranscript"
-  | "githubDiff";
+  | "githubDiff"
+  | "emailThread";
 
 export interface PageContext {
   url: string;
@@ -24,6 +25,10 @@ export interface PageContext {
   // blocks per file — GitHub's diff table isn't article-like content, so
   // Readability wouldn't produce anything useful; this is scraped directly.
   githubDiff?: string;
+  // A Gmail thread's message(s), scraped from the DOM the same way as
+  // githubDiff — Gmail is a fully authenticated SPA with no article-like
+  // structure Readability could use.
+  emailThread?: string;
   // Set instead of `markdown` when this is a local (file://) PDF — no
   // extension context can fetch its bytes without a permission most users
   // won't want to grant, so the sidebar prompts to upload the file directly
