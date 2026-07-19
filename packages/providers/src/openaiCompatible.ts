@@ -1,3 +1,4 @@
+import { stripImagesForTextOnlyProvider } from "./contentParts";
 import { describeProviderError } from "./httpError";
 import type { ChatChunk, ChatMessage, ChatRequest, ModelInfo, Provider, ProviderConfig, ProviderPreset } from "./types";
 
@@ -27,12 +28,14 @@ export class OpenAICompatibleProvider implements Provider {
   private baseUrl: string;
   private apiKey?: string;
   private readonly fallbackModels: ModelInfo[];
+  private readonly supportsVision?: false;
 
   constructor(preset: ProviderPreset) {
     this.id = preset.id;
     this.label = preset.label;
     this.baseUrl = preset.baseUrl;
     this.fallbackModels = preset.fallbackModels;
+    this.supportsVision = preset.supportsVision;
   }
 
   configure(config: ProviderConfig): void {
@@ -73,7 +76,11 @@ export class OpenAICompatibleProvider implements Provider {
       signal: request.signal,
       body: JSON.stringify({
         model: request.model,
-        messages: request.messages.map((message) => ({ role: message.role, content: toOpenAIContent(message.content) })),
+        messages: request.messages.map((message) => ({
+          role: message.role,
+          content:
+            this.supportsVision === false ? stripImagesForTextOnlyProvider(message.content) : toOpenAIContent(message.content),
+        })),
         temperature: request.temperature,
         max_tokens: request.maxTokens,
         stream: true,

@@ -1,4 +1,4 @@
-import { parseDataUrl, textOnly } from "./contentParts";
+import { parseDataUrl, stripImagesForTextOnlyProvider, textOnly } from "./contentParts";
 import { describeProviderError } from "./httpError";
 import type {
   ChatChunk,
@@ -40,12 +40,14 @@ export class GeminiProvider implements Provider {
   private baseUrl: string;
   private apiKey?: string;
   private readonly fallbackModels: ModelInfo[];
+  private readonly supportsVision?: false;
 
   constructor(preset: ProviderPreset) {
     this.id = preset.id;
     this.label = preset.label;
     this.baseUrl = preset.baseUrl;
     this.fallbackModels = preset.fallbackModels;
+    this.supportsVision = preset.supportsVision;
   }
 
   configure(config: ProviderConfig): void {
@@ -91,7 +93,10 @@ export class GeminiProvider implements Provider {
       .filter((message) => message.role !== "system")
       .map((message) => ({
         role: message.role === "assistant" ? "model" : "user",
-        parts: toGeminiParts(message.content),
+        parts:
+          this.supportsVision === false
+            ? [{ text: stripImagesForTextOnlyProvider(message.content) }]
+            : toGeminiParts(message.content),
       }));
 
     const res = await fetch(`${this.baseUrl}/models/${request.model}:streamGenerateContent?alt=sse`, {

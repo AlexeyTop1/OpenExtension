@@ -1,4 +1,4 @@
-import { parseDataUrl, textOnly } from "./contentParts";
+import { parseDataUrl, stripImagesForTextOnlyProvider, textOnly } from "./contentParts";
 import { describeProviderError } from "./httpError";
 import type {
   ChatChunk,
@@ -36,12 +36,14 @@ export class AnthropicProvider implements Provider {
   private baseUrl: string;
   private apiKey?: string;
   private readonly fallbackModels: ModelInfo[];
+  private readonly supportsVision?: false;
 
   constructor(preset: ProviderPreset) {
     this.id = preset.id;
     this.label = preset.label;
     this.baseUrl = preset.baseUrl;
     this.fallbackModels = preset.fallbackModels;
+    this.supportsVision = preset.supportsVision;
   }
 
   configure(config: ProviderConfig): void {
@@ -86,7 +88,10 @@ export class AnthropicProvider implements Provider {
       .join("\n\n");
     const conversation = request.messages
       .filter((message) => message.role !== "system")
-      .map((message) => ({ role: message.role, content: toAnthropicContent(message.content) }));
+      .map((message) => ({
+        role: message.role,
+        content: this.supportsVision === false ? stripImagesForTextOnlyProvider(message.content) : toAnthropicContent(message.content),
+      }));
 
     const res = await fetch(`${this.baseUrl}/messages`, {
       method: "POST",
