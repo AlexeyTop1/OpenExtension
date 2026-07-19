@@ -6,6 +6,7 @@ import { summarizePage } from "./builtins/summarizePage";
 import { summarizeYoutube } from "./builtins/summarizeYoutube";
 import { summarizeGithubDiff } from "./builtins/summarizeGithubDiff";
 import { summarizeGmailThread } from "./builtins/summarizeGmailThread";
+import { draftGmailReply } from "./builtins/draftGmailReply";
 import { translatePage } from "./builtins/translatePage";
 import { customPromptSelection } from "./builtins/customPromptSelection";
 import { explainSelection } from "./builtins/explainSelection";
@@ -28,6 +29,7 @@ export {
   summarizeYoutube,
   summarizeGithubDiff,
   summarizeGmailThread,
+  draftGmailReply,
   translatePage,
   rewritePage,
   findIssues,

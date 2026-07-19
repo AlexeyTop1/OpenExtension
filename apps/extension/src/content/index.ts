@@ -1,6 +1,7 @@
 import type { ExtensionMessage } from "../shared/messaging/types";
 import { extractRequestedContext } from "./context/extractPage";
 import { fetchImageAsDataUrl } from "./context/fetchImage";
+import { insertGmailReply } from "./context/gmailCompose";
 import { mountSelectionToolbar } from "./selectionToolbar/mount";
 import { replaceCapturedSelection } from "./selectionToolbar/replaceTarget";
 
@@ -14,6 +15,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
   }
   if (message.type === "FETCH_IMAGE_DATA_URL") {
     fetchImageAsDataUrl(message.imageUrl).then(sendResponse);
+    return true;
+  }
+  if (message.type === "INSERT_GMAIL_REPLY") {
+    insertGmailReply(message.text).then(sendResponse);
     return true;
   }
   return undefined;

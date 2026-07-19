@@ -26,6 +26,7 @@
   "gmail": {
     "subjectSelector": "h2.hP",
     "messageBodySelector": ".ii.gt .a3s.aiL",
-    "senderNameSelector": ".gD"
+    "senderNameSelector": ".gD",
+    "composeBodySelector": "div[g_editable=\"true\"][contenteditable=\"true\"]"
   }
 }

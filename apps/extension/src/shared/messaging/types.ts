@@ -51,10 +51,19 @@ export interface FetchImageDataUrlMessage {
 
 export type FetchImageDataUrlResponse = { dataUrl: string } | { error: string };
 
+// Sidebar -> the tab a Gmail draft-reply action ran against, via
+// chrome.tabs.sendMessage(tabId, ...) directly, same pattern as
+// ReplaceSelectionMessage — writes into whatever compose box is currently open.
+export interface InsertGmailReplyMessage {
+  type: "INSERT_GMAIL_REPLY";
+  text: string;
+}
+
 export type ExtensionMessage =
   | ContextRequestMessage
   | ExtractContextMessage
   | RunSelectionActionMessage
   | ReplaceSelectionMessage
   | OpenSidebarWithPromptMessage
-  | FetchImageDataUrlMessage;
+  | FetchImageDataUrlMessage
+  | InsertGmailReplyMessage;

@@ -24,6 +24,7 @@ interface Props {
   streamingText: string | null;
   onRegenerate: () => void;
   replaceableMessageId: string | null;
+  replaceLabel?: string;
   onReplace: (messageId: string, text: string) => void;
 }
 
@@ -61,6 +62,7 @@ export default function MessageList({
   streamingText,
   onRegenerate,
   replaceableMessageId,
+  replaceLabel = "Replace on page",
   onReplace,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -117,10 +119,10 @@ export default function MessageList({
                 <button
                   className="btn-ghost"
                   style={{ padding: "2px 6px", fontSize: 11 }}
-                  title="Replace the selected text on the page with this"
+                  title={replaceLabel}
                   onClick={() => onReplace(message.id, textOnly(message.content))}
                 >
-                  <Replace className="icon" size={12} /> Replace on page
+                  <Replace className="icon" size={12} /> {replaceLabel}
                 </button>
               )}
             </div>

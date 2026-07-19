@@ -35,6 +35,7 @@ export interface SelectorConfig {
     subjectSelector: string;
     messageBodySelector: string;
     senderNameSelector: string;
+    composeBodySelector: string;
   };
 }
 
@@ -67,6 +68,10 @@ export const DEFAULT_SELECTOR_CONFIG: SelectorConfig = {
     subjectSelector: "h2.hP",
     messageBodySelector: ".ii.gt .a3s.aiL",
     senderNameSelector: ".gD",
+    // g_editable is Gmail's own internal flag (not a display string), so —
+    // unlike aria-label, which is translated per account language (confirmed
+    // live: "Текст письма" for Russian) — this stays reliable across locales.
+    composeBodySelector: 'div[g_editable="true"][contenteditable="true"]',
   },
 };
 
@@ -130,7 +135,8 @@ export function isValidSelectorConfig(value: unknown): value is SelectorConfig {
     gmail === null ||
     !isString(gmail.subjectSelector) ||
     !isString(gmail.messageBodySelector) ||
-    !isString(gmail.senderNameSelector)
+    !isString(gmail.senderNameSelector) ||
+    !isString(gmail.composeBodySelector)
   ) {
     return false;
   }

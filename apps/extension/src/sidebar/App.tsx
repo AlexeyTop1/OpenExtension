@@ -21,6 +21,7 @@ import {
   summarizeYoutube,
   summarizeGithubDiff,
   summarizeGmailThread,
+  draftGmailReply,
   runAction,
   PAGE_ACTIONS,
   IMAGE_ACTIONS,
@@ -79,7 +80,11 @@ export default function App() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [dismissedPinId, setDismissedPinId] = useState<string | null>(null);
-  const [replaceTarget, setReplaceTarget] = useState<{ messageId: string; tabId: number } | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<
+    | { kind: "selection"; messageId: string; tabId: number }
+    | { kind: "gmailCompose"; messageId: string; tabId: number }
+    | null
+  >(null);
   const [pendingLocalPdf, setPendingLocalPdf] = useState<{
     fileName: string;
     page: Partial<PageContext>;
@@ -98,7 +103,7 @@ export default function App() {
     ? [
         ...(isYoutubeWatchUrl(activeTabUrl) ? [summarizeYoutube] : []),
         ...(isGithubPRUrl(activeTabUrl) ? [summarizeGithubDiff] : []),
-        ...(isGmailThreadUrl(activeTabUrl) ? [summarizeGmailThread] : []),
+        ...(isGmailThreadUrl(activeTabUrl) ? [summarizeGmailThread, draftGmailReply] : []),
       ]
     : [];
   const pinnedChat = normalizedCurrentUrl
@@ -293,8 +298,20 @@ export default function App() {
       return;
     }
 
-    if (action.id === summarizeGmailThread.id && !page.emailThread) {
+    if ((action.id === summarizeGmailThread.id || action.id === draftGmailReply.id) && !page.emailThread) {
       setError("Couldn't find an open email on this page — open a thread first.");
+      return;
+    }
+
+    if (action.id === draftGmailReply.id) {
+      const [message] = runAction(action, { page });
+      const result = await handleSend(message.content);
+      if (result) {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id !== undefined) {
+          setReplaceTarget({ kind: "gmailCompose", messageId: result.id, tabId: tab.id });
+        }
+      }
       return;
     }
 
@@ -354,7 +371,7 @@ export default function App() {
 
     const maybeRememberReplaceTarget = (assistantMessage: Message | null) => {
       if (assistantMessage && isReplaceable && action.supportsReplace) {
-        setReplaceTarget({ messageId: assistantMessage.id, tabId });
+        setReplaceTarget({ kind: "selection", messageId: assistantMessage.id, tabId });
       }
     };
 
@@ -423,11 +440,21 @@ export default function App() {
 
   async function handleReplace(messageId: string, text: string) {
     if (!replaceTarget || replaceTarget.messageId !== messageId) return;
+    const isGmail = replaceTarget.kind === "gmailCompose";
     try {
-      const ok = await chrome.tabs.sendMessage(replaceTarget.tabId, { type: "REPLACE_SELECTION", text });
-      if (!ok) setError("Couldn't find that text on the page anymore — try selecting it again.");
+      const ok = await chrome.tabs.sendMessage(
+        replaceTarget.tabId,
+        isGmail ? { type: "INSERT_GMAIL_REPLY", text } : { type: "REPLACE_SELECTION", text },
+      );
+      if (!ok) {
+        setError(
+          isGmail
+            ? "Couldn't find the Gmail reply box anymore — try clicking Reply again."
+            : "Couldn't find that text on the page anymore — try selecting it again.",
+        );
+      }
     } catch {
-      setError("Couldn't reach that page anymore — try selecting the text again.");
+      setError("Couldn't reach that page anymore — try again.");
     } finally {
       setReplaceTarget(null);
     }
@@ -610,6 +637,7 @@ export default function App() {
             streamingText={streamingText}
             onRegenerate={handleRegenerate}
             replaceableMessageId={replaceTarget?.messageId ?? null}
+            replaceLabel={replaceTarget?.kind === "gmailCompose" ? "Insert into Gmail" : "Replace on page"}
             onReplace={handleReplace}
           />
 
