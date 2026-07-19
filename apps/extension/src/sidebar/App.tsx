@@ -19,13 +19,14 @@ import {
   translateSelection,
   customPromptSelection,
   summarizeYoutube,
+  summarizeGithubDiff,
   runAction,
   PAGE_ACTIONS,
   IMAGE_ACTIONS,
   type ActionDefinition,
 } from "@openextension/actions";
 import { SELECTION_ACTIONS } from "@openextension/actions";
-import { isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
+import { isGithubPRUrl, isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
 import {
   appendMessage,
   createChat,
@@ -92,7 +93,12 @@ export default function App() {
 
   const activeTabUrl = useActiveTabUrl();
   const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
-  const contextualActions = activeTabUrl && isYoutubeWatchUrl(activeTabUrl) ? [summarizeYoutube] : [];
+  const contextualActions = activeTabUrl
+    ? [
+        ...(isYoutubeWatchUrl(activeTabUrl) ? [summarizeYoutube] : []),
+        ...(isGithubPRUrl(activeTabUrl) ? [summarizeGithubDiff] : []),
+      ]
+    : [];
   const pinnedChat = normalizedCurrentUrl
     ? chats.find((candidate) => candidate.pinnedUrl === normalizedCurrentUrl && candidate.id !== chat?.id)
     : undefined;
@@ -277,6 +283,11 @@ export default function App() {
   ) {
     if (action.id === summarizeYoutube.id && !page.youtubeTranscript) {
       setError("This video doesn't have captions available, so it can't be summarized from a transcript.");
+      return;
+    }
+
+    if (action.id === summarizeGithubDiff.id && !page.githubDiff) {
+      setError('No file changes found on this page — open the "Files changed" tab first.');
       return;
     }
 

@@ -4,6 +4,7 @@ import { findIssues } from "./builtins/findIssues";
 import { rewritePage } from "./builtins/rewritePage";
 import { summarizePage } from "./builtins/summarizePage";
 import { summarizeYoutube } from "./builtins/summarizeYoutube";
+import { summarizeGithubDiff } from "./builtins/summarizeGithubDiff";
 import { translatePage } from "./builtins/translatePage";
 import { customPromptSelection } from "./builtins/customPromptSelection";
 import { explainSelection } from "./builtins/explainSelection";
@@ -24,6 +25,7 @@ export {
   explainPage,
   summarizePage,
   summarizeYoutube,
+  summarizeGithubDiff,
   translatePage,
   rewritePage,
   findIssues,

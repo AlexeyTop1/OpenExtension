@@ -9,5 +9,8 @@ export function formatPage(page?: Partial<PageContext>): string {
   if (page.youtubeTranscript) {
     lines.push("", "Transcript:", page.youtubeTranscript);
   }
+  if (page.githubDiff) {
+    lines.push("", "Diff:", page.githubDiff);
+  }
   return lines.join("\n");
 }

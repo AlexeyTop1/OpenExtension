@@ -1,4 +1,5 @@
 import { extractReadableContent, isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
+import { extractGithubDiff } from "./githubDiff";
 import { extractPdfText, getPdfFileName, isLocalPdf, isPdfDocument } from "./pdfText";
 import { scrapeYoutubeTranscript } from "./youtubeTranscript";
 
@@ -39,6 +40,10 @@ export async function extractRequestedContext(fields: ContextField[]): Promise<P
 
   if (fields.includes("selection")) {
     result.selection = window.getSelection()?.toString() || "";
+  }
+
+  if (fields.includes("githubDiff")) {
+    result.githubDiff = extractGithubDiff() ?? undefined;
   }
 
   if (fields.includes("youtubeTranscript") && isYoutubeWatchUrl(location.href)) {

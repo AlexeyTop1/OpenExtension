@@ -6,7 +6,7 @@ export type ContextField =
   | "selection"
   | "images"
   | "youtubeTranscript"
-  | "githubRepo";
+  | "githubDiff";
 
 export interface PageContext {
   url: string;
@@ -20,7 +20,10 @@ export interface PageContext {
   selection?: string;
   images?: unknown[];
   youtubeTranscript?: string;
-  githubRepo?: unknown;
+  // A GitHub pull request's changed-file diffs, formatted as fenced diff
+  // blocks per file — GitHub's diff table isn't article-like content, so
+  // Readability wouldn't produce anything useful; this is scraped directly.
+  githubDiff?: string;
   // Set instead of `markdown` when this is a local (file://) PDF — no
   // extension context can fetch its bytes without a permission most users
   // won't want to grant, so the sidebar prompts to upload the file directly
