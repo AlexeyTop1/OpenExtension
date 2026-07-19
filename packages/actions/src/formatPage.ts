@@ -12,6 +12,9 @@ export function formatPage(page?: Partial<PageContext>): string {
   if (page.githubDiff) {
     lines.push("", "Diff:", page.githubDiff);
   }
+  if (page.githubFile) {
+    lines.push("", page.githubFile);
+  }
   if (page.emailThread) {
     lines.push("", page.emailThread);
   }

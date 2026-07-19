@@ -5,6 +5,7 @@ import { rewritePage } from "./builtins/rewritePage";
 import { summarizePage } from "./builtins/summarizePage";
 import { summarizeYoutube } from "./builtins/summarizeYoutube";
 import { summarizeGithubDiff } from "./builtins/summarizeGithubDiff";
+import { explainGithubFile } from "./builtins/explainGithubFile";
 import { summarizeGmailThread } from "./builtins/summarizeGmailThread";
 import { draftGmailReply } from "./builtins/draftGmailReply";
 import { translatePage } from "./builtins/translatePage";
@@ -28,6 +29,7 @@ export {
   summarizePage,
   summarizeYoutube,
   summarizeGithubDiff,
+  explainGithubFile,
   summarizeGmailThread,
   draftGmailReply,
   translatePage,

@@ -21,6 +21,10 @@
       "additionLineSelector": ".blob-code-addition",
       "deletionLineSelector": ".blob-code-deletion",
       "additionClass": "blob-code-addition"
+    },
+    "fileView": {
+      "contentSelector": "[data-testid=\"read-only-cursor-text-area\"]",
+      "filenameSelector": "[data-testid=\"breadcrumbs-filename\"]"
     }
   },
   "gmail": {

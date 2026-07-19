@@ -7,6 +7,7 @@ export type ContextField =
   | "images"
   | "youtubeTranscript"
   | "githubDiff"
+  | "githubFile"
   | "emailThread";
 
 export interface PageContext {
@@ -25,6 +26,10 @@ export interface PageContext {
   // blocks per file — GitHub's diff table isn't article-like content, so
   // Readability wouldn't produce anything useful; this is scraped directly.
   githubDiff?: string;
+  // A GitHub file-view page's source code — GitHub's file viewer is a React
+  // component (`data-testid="code-cell"` per line), not article-like content,
+  // so this is scraped directly rather than going through Readability.
+  githubFile?: string;
   // A Gmail thread's message(s), scraped from the DOM the same way as
   // githubDiff — Gmail is a fully authenticated SPA with no article-like
   // structure Readability could use.

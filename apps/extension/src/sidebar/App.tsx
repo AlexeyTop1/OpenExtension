@@ -20,6 +20,7 @@ import {
   customPromptSelection,
   summarizeYoutube,
   summarizeGithubDiff,
+  explainGithubFile,
   summarizeGmailThread,
   draftGmailReply,
   runAction,
@@ -28,7 +29,14 @@ import {
   type ActionDefinition,
 } from "@openextension/actions";
 import { SELECTION_ACTIONS } from "@openextension/actions";
-import { isGithubPRUrl, isGmailThreadUrl, isYoutubeWatchUrl, type ContextField, type PageContext } from "@openextension/context";
+import {
+  isGithubFileUrl,
+  isGithubPRUrl,
+  isGmailThreadUrl,
+  isYoutubeWatchUrl,
+  type ContextField,
+  type PageContext,
+} from "@openextension/context";
 import {
   appendMessage,
   createChat,
@@ -103,6 +111,7 @@ export default function App() {
     ? [
         ...(isYoutubeWatchUrl(activeTabUrl) ? [summarizeYoutube] : []),
         ...(isGithubPRUrl(activeTabUrl) ? [summarizeGithubDiff] : []),
+        ...(isGithubFileUrl(activeTabUrl) ? [explainGithubFile] : []),
         ...(isGmailThreadUrl(activeTabUrl) ? [summarizeGmailThread, draftGmailReply] : []),
       ]
     : [];
@@ -295,6 +304,11 @@ export default function App() {
 
     if (action.id === summarizeGithubDiff.id && !page.githubDiff) {
       setError('No file changes found on this page — open the "Files changed" tab first.');
+      return;
+    }
+
+    if (action.id === explainGithubFile.id && !page.githubFile) {
+      setError("Couldn't read this file's content — try reloading the page.");
       return;
     }
 

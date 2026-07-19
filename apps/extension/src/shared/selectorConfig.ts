@@ -30,6 +30,10 @@ export interface SelectorConfig {
       deletionLineSelector: string;
       additionClass: string;
     };
+    fileView: {
+      contentSelector: string;
+      filenameSelector: string;
+    };
   };
   gmail: {
     subjectSelector: string;
@@ -62,6 +66,15 @@ export const DEFAULT_SELECTOR_CONFIG: SelectorConfig = {
       additionLineSelector: ".blob-code-addition",
       deletionLineSelector: ".blob-code-deletion",
       additionClass: "blob-code-addition",
+    },
+    fileView: {
+      // Confirmed live 2026-07-20: GitHub's file viewer keeps the whole raw
+      // file as plain text in a hidden textarea (for native
+      // selection/copy/accessibility) rather than one DOM node per line —
+      // much simpler to read than trying to reconstruct text from the
+      // syntax-highlighted line cells.
+      contentSelector: '[data-testid="read-only-cursor-text-area"]',
+      filenameSelector: '[data-testid="breadcrumbs-filename"]',
     },
   },
   gmail: {
@@ -125,6 +138,15 @@ export function isValidSelectorConfig(value: unknown): value is SelectorConfig {
     !isString(classicUi.additionLineSelector) ||
     !isString(classicUi.deletionLineSelector) ||
     !isString(classicUi.additionClass)
+  ) {
+    return false;
+  }
+  const fileView = gh.fileView as Record<string, unknown> | undefined;
+  if (
+    typeof fileView !== "object" ||
+    fileView === null ||
+    !isString(fileView.contentSelector) ||
+    !isString(fileView.filenameSelector)
   ) {
     return false;
   }
