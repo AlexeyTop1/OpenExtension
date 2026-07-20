@@ -47,7 +47,10 @@ import {
   updateChat,
 } from "../storage/chatRepository";
 import { getProviderConfig } from "../storage/providerRepository";
-import type { Chat, Message } from "../storage/schema";
+import { CUSTOM_PROMPTS_KEY, listCustomPrompts } from "../storage/promptRepository";
+import type { Chat, CustomPrompt, Message } from "../storage/schema";
+import { customPromptActionId, customPromptToAction, CUSTOM_PROMPT_ID_PREFIX } from "./customPromptActions";
+import { fillableVariables } from "../shared/promptTemplate";
 import { pickDefaultProviderAndModel } from "./defaultProvider";
 import { detectLanguageCode, getPreferredLanguage } from "./preferredLanguage";
 import { consumePendingSelectionAction, onPendingSelectionAction } from "./pendingSelectionAction";
@@ -59,6 +62,7 @@ import { normalizeUrl } from "./normalizeUrl";
 import { parsePdfBytes } from "../shared/pdfParse";
 import { useActiveTabUrl } from "./useActiveTabUrl";
 import ChatHistoryList from "./components/ChatHistoryList";
+import CustomPromptForm from "./components/CustomPromptForm";
 import MessageList from "./components/MessageList";
 import ModelSwitcher from "./components/ModelSwitcher";
 import PageActionsBar from "./components/PageActionsBar";
@@ -104,6 +108,12 @@ export default function App() {
   // the same local PDF doesn't ask the user to re-pick the file — cleared
   // when the side panel closes, which is an acceptable "for this session" scope.
   const localPdfTextCacheRef = useRef<Map<string, string>>(new Map());
+  const [customPrompts, setCustomPrompts] = useState<CustomPrompt[]>([]);
+  const [pendingCustomPrompt, setPendingCustomPrompt] = useState<{
+    prompt: CustomPrompt;
+    action: ActionDefinition;
+    page: Partial<PageContext>;
+  } | null>(null);
 
   const activeTabUrl = useActiveTabUrl();
   const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
@@ -115,6 +125,18 @@ export default function App() {
         ...(isGmailThreadUrl(activeTabUrl) ? [summarizeGmailThread, draftGmailReply] : []),
       ]
     : [];
+  const customPromptActions = customPrompts.map(customPromptToAction);
+
+  useEffect(() => {
+    listCustomPrompts().then(setCustomPrompts);
+    const listener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
+      if (areaName === "local" && CUSTOM_PROMPTS_KEY in changes) {
+        setCustomPrompts((changes[CUSTOM_PROMPTS_KEY].newValue as CustomPrompt[]) ?? []);
+      }
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
+  }, []);
   const pinnedChat = normalizedCurrentUrl
     ? chats.find((candidate) => candidate.pinnedUrl === normalizedCurrentUrl && candidate.id !== chat?.id)
     : undefined;
@@ -375,7 +397,40 @@ export default function App() {
   // (via SELECTION_ACTIONS) the toolbar/context menu — proves actions are
   // decoupled from how they're triggered.
   function handleSlashCommand(action: ActionDefinition, argument: string) {
+    if (action.id.startsWith(CUSTOM_PROMPT_ID_PREFIX)) {
+      void handleRunCustomPrompt(action);
+      return;
+    }
     void handleRunPageAction(action, argument || undefined);
+  }
+
+  async function handleRunCustomPrompt(action: ActionDefinition) {
+    const prompt = customPrompts.find((candidate) => customPromptActionId(candidate.id) === action.id);
+    if (!prompt) return;
+
+    // Fetch page/selection context immediately, at command-invocation time —
+    // not when the form is later submitted, since filling out a multi-field
+    // form takes real time and the page's own text selection can be gone by
+    // then (e.g. cleared by interacting with the sidebar's own inputs).
+    const page = action.requiredFields.length ? await fetchPageContext(action.requiredFields) : {};
+
+    const variables = fillableVariables(prompt.template);
+    if (variables.length > 0) {
+      setPendingCustomPrompt({ prompt, action, page });
+      return;
+    }
+
+    const [message] = runAction(action, { page, selection: page.selection });
+    await handleSend(message.content);
+  }
+
+  async function handleSubmitCustomPromptForm(values: Record<string, string>) {
+    if (!pendingCustomPrompt) return;
+    const { action, page } = pendingCustomPrompt;
+    setPendingCustomPrompt(null);
+
+    const [message] = runAction(action, { page, selection: page.selection, variables: values });
+    await handleSend(message.content);
   }
 
   async function handleRunSelectionAction(pending: PendingSelectionAction, activeChat?: Chat) {
@@ -702,6 +757,15 @@ export default function App() {
             </div>
           )}
 
+          {pendingCustomPrompt && (
+            <CustomPromptForm
+              label={pendingCustomPrompt.prompt.label}
+              variables={fillableVariables(pendingCustomPrompt.prompt.template)}
+              onSubmit={handleSubmitCustomPromptForm}
+              onCancel={() => setPendingCustomPrompt(null)}
+            />
+          )}
+
           <PageActionsBar
             onRunAction={handleRunPageAction}
             disabled={isSending}
@@ -713,7 +777,7 @@ export default function App() {
             onSend={handleSend}
             onCommand={handleSlashCommand}
             onStop={handleStop}
-            commands={[...contextualActions, ...PAGE_ACTIONS]}
+            commands={[...contextualActions, ...PAGE_ACTIONS, ...customPromptActions]}
             disabled={isSending}
           />
         </>

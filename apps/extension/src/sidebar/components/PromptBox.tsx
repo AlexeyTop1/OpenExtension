@@ -39,6 +39,11 @@ export default function PromptBox({ onSend, onCommand, onStop, commands, disable
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Tab" && slashBody !== null && !exactMatch && suggestions.length === 1) {
+      event.preventDefault();
+      setValue(`/${suggestions[0].command} `);
+      return;
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       submit();
