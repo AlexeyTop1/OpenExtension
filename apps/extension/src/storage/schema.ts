@@ -27,3 +27,17 @@ export interface ProviderConfigRecord {
   apiKey?: string;
   baseUrl?: string;
 }
+
+export interface CustomPrompt {
+  id: string;
+  label: string;
+  // Slash-command slug, no leading "/" — must not collide with a built-in
+  // action's command.
+  command: string;
+  // Free text with `{{variableName}}` placeholders. `{{page}}` and
+  // `{{selection}}` are reserved and auto-filled from page context; any
+  // other name is collected from the user via a small form before running.
+  template: string;
+  createdAt: number;
+  updatedAt: number;
+}

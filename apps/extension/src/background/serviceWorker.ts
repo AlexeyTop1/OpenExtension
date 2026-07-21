@@ -4,6 +4,7 @@ import type { ExtensionMessage } from "../shared/messaging/types";
 import { PENDING_IMAGE_ACTION_KEY } from "../shared/pendingImageAction";
 import { PENDING_SELECTION_ACTION_KEY } from "../shared/pendingSelectionAction";
 import { refreshSelectorConfig } from "../shared/selectorConfigStorage";
+import { refreshMarketplaceIndex } from "../shared/marketplaceStorage";
 
 chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
@@ -15,12 +16,21 @@ chrome.sidePanel
 // on install/update/browser-startup so a fresh install doesn't wait 4h for
 // the first pull, then every 4h after that via the alarm.
 const SELECTOR_CONFIG_ALARM = "refresh-selector-config";
+const MARKETPLACE_INDEX_ALARM = "refresh-marketplace-index";
 chrome.alarms.create(SELECTOR_CONFIG_ALARM, { periodInMinutes: 240 });
+chrome.alarms.create(MARKETPLACE_INDEX_ALARM, { periodInMinutes: 240 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === SELECTOR_CONFIG_ALARM) void refreshSelectorConfig();
+  if (alarm.name === MARKETPLACE_INDEX_ALARM) void refreshMarketplaceIndex();
 });
-chrome.runtime.onInstalled.addListener(() => void refreshSelectorConfig());
-chrome.runtime.onStartup.addListener(() => void refreshSelectorConfig());
+chrome.runtime.onInstalled.addListener(() => {
+  void refreshSelectorConfig();
+  void refreshMarketplaceIndex();
+});
+chrome.runtime.onStartup.addListener(() => {
+  void refreshSelectorConfig();
+  void refreshMarketplaceIndex();
+});
 
 chrome.contextMenus.removeAll(() => {
   for (const action of SELECTION_ACTIONS) {

@@ -1,0 +1,17 @@
+[
+  {
+    "label": "Security review",
+    "command": "security-review",
+    "template": "Review this pull request's diff for security issues (auth, injection, secrets, unsafe deserialization). Point to specific files/lines where possible.\n\n{{page}}"
+  },
+  {
+    "label": "Suggest tests",
+    "command": "suggest-tests",
+    "template": "Suggest test cases that should be added to cover the changes in this diff.\n\n{{page}}"
+  },
+  {
+    "label": "Explain for onboarding",
+    "command": "explain-onboarding",
+    "template": "Explain this file as if onboarding a new engineer to the codebase — what it does, how it fits into the bigger picture, and any non-obvious gotchas.\n\n{{page}}"
+  }
+]

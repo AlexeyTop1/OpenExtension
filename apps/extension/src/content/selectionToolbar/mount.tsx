@@ -1,6 +1,7 @@
 import { createRoot, type Root } from "react-dom/client";
 import SelectionToolbar from "./SelectionToolbar";
 import { captureReplaceTarget } from "./replaceTarget";
+import { isSelectionToolbarEnabled, SELECTION_TOOLBAR_ENABLED_KEY } from "../../shared/selectionToolbarSetting";
 
 let host: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -33,7 +34,18 @@ function showToolbar(rect: DOMRect, selectionText: string, isReplaceable: boolea
 }
 
 export function mountSelectionToolbar() {
+  let enabled = true;
+  isSelectionToolbarEnabled().then((value) => {
+    enabled = value;
+  });
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local" || !(SELECTION_TOOLBAR_ENABLED_KEY in changes)) return;
+    enabled = (changes[SELECTION_TOOLBAR_ENABLED_KEY].newValue as boolean | undefined) ?? true;
+    if (!enabled) removeToolbar();
+  });
+
   document.addEventListener("mouseup", (event) => {
+    if (!enabled) return;
     if (host?.contains(event.target as Node)) return;
 
     setTimeout(() => {

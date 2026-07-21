@@ -1,6 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
-import { Square } from "lucide-react";
+import { Mic, Square } from "lucide-react";
 import type { ActionDefinition } from "@openextension/actions";
+import { useSpeechRecognition } from "../useSpeechRecognition";
 
 interface Props {
   onSend: (text: string) => void;
@@ -12,6 +13,14 @@ interface Props {
 
 export default function PromptBox({ onSend, onCommand, onStop, commands, disabled }: Props) {
   const [value, setValue] = useState("");
+  const {
+    isSupported: micSupported,
+    isListening,
+    error: micError,
+    toggle: toggleMic,
+  } = useSpeechRecognition((transcript) => {
+    setValue((prev) => (prev ? `${prev} ${transcript}` : transcript));
+  });
 
   const slashBody = value.startsWith("/") ? value.slice(1) : null;
   const [typedCommand, ...rest] = slashBody?.split(" ") ?? [];
@@ -39,6 +48,11 @@ export default function PromptBox({ onSend, onCommand, onStop, commands, disable
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Tab" && slashBody !== null && !exactMatch && suggestions.length === 1) {
+      event.preventDefault();
+      setValue(`/${suggestions[0].command} `);
+      return;
+    }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       submit();
@@ -71,6 +85,12 @@ export default function PromptBox({ onSend, onCommand, onStop, commands, disable
         </div>
       )}
 
+      {micError && (
+        <div className="text-danger" style={{ padding: "0 var(--space-3)", fontSize: 12 }}>
+          {micError}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: "var(--space-2)", padding: "var(--space-3)" }}>
         <textarea
           className="input"
@@ -82,6 +102,17 @@ export default function PromptBox({ onSend, onCommand, onStop, commands, disable
           style={{ flex: 1, resize: "none" }}
           disabled={disabled}
         />
+        {micSupported && (
+          <button
+            className="btn btn-icon"
+            title={isListening ? "Stop voice input" : "Voice input"}
+            onClick={toggleMic}
+            disabled={disabled}
+            style={isListening ? { color: "var(--color-danger)" } : undefined}
+          >
+            <Mic className="icon" size={14} fill={isListening ? "currentColor" : "none"} />
+          </button>
+        )}
         {disabled ? (
           <button className="btn btn-icon" onClick={onStop}>
             <Square className="icon" size={14} fill="currentColor" /> Stop

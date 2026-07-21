@@ -6,6 +6,9 @@ export interface ActionContext {
   selection?: string;
   input?: string;
   image?: { dataUrl: string };
+  // User-filled {{variable}} values for a Prompt Library custom prompt —
+  // everything except the reserved `page`/`selection` names.
+  variables?: Record<string, string>;
 }
 
 export interface ActionDefinition {

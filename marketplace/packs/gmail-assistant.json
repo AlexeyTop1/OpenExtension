@@ -1,0 +1,17 @@
+[
+  {
+    "label": "Extract action items",
+    "command": "action-items",
+    "template": "List every concrete action item from this email thread, who owns it, and any deadline mentioned.\n\n{{page}}"
+  },
+  {
+    "label": "Draft polite decline",
+    "command": "decline-politely",
+    "template": "Draft a polite, brief reply declining this, giving the following reason: {{reason}}\n\n{{page}}"
+  },
+  {
+    "label": "Translate and summarize",
+    "command": "translate-summarize",
+    "template": "Summarize this email thread in {{language}}, using a few bullet points.\n\n{{page}}"
+  }
+]
