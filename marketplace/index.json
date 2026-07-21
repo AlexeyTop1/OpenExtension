@@ -1,0 +1,14 @@
+[
+  {
+    "id": "github-reviewer",
+    "name": "GitHub PR Reviewer",
+    "description": "Security review, test suggestions, and onboarding-style explanations for pull requests and files.",
+    "author": "AlexeyTop1"
+  },
+  {
+    "id": "gmail-assistant",
+    "name": "Gmail Assistant",
+    "description": "Extract action items, draft polite declines, and translate email threads.",
+    "author": "AlexeyTop1"
+  }
+]

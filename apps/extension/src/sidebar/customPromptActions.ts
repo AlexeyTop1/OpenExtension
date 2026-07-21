@@ -14,7 +14,13 @@ export function customPromptActionId(promptId: string): string {
 
 export function customPromptToAction(prompt: CustomPrompt): ActionDefinition {
   const requiredFields: ContextField[] = [];
-  if (usesReservedVariable(prompt.template, "page")) requiredFields.push("title", "url", "markdown");
+  if (usesReservedVariable(prompt.template, "page")) {
+    // Request every site-specific field too, not just markdown — each
+    // extractor is already a harmless no-op when it doesn't apply (e.g.
+    // githubDiff on a non-GitHub page), and formatPage() only includes
+    // whichever ones actually came back populated.
+    requiredFields.push("title", "url", "markdown", "githubDiff", "githubFile", "emailThread", "youtubeTranscript");
+  }
   if (usesReservedVariable(prompt.template, "selection")) requiredFields.push("selection");
 
   return {

@@ -1,6 +1,7 @@
 import { Puzzle } from "lucide-react";
 import { PROVIDER_PRESETS } from "@openextension/providers";
 import GeneralSettingsSection from "./GeneralSettingsSection";
+import MarketplaceSection from "./MarketplaceSection";
 import ProviderKeyForm from "./ProviderKeyForm";
 import PromptLibrarySection from "./PromptLibrarySection";
 
@@ -27,6 +28,7 @@ export default function App() {
       </div>
 
       <PromptLibrarySection />
+      <MarketplaceSection />
     </div>
   );
 }

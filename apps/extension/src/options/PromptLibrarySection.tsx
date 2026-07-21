@@ -1,22 +1,9 @@
 import { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import {
-  PAGE_ACTIONS,
-  summarizeYoutube,
-  summarizeGithubDiff,
-  explainGithubFile,
-  summarizeGmailThread,
-  draftGmailReply,
-} from "@openextension/actions";
 import { listCustomPrompts, saveCustomPrompt, deleteCustomPrompt } from "../storage/promptRepository";
 import type { CustomPrompt } from "../storage/schema";
 import { extractTemplateVariables, isValidCommandSlug } from "../shared/promptTemplate";
-
-const BUILT_IN_COMMANDS = new Set(
-  [...PAGE_ACTIONS, summarizeYoutube, summarizeGithubDiff, explainGithubFile, summarizeGmailThread, draftGmailReply]
-    .map((action) => action.command)
-    .filter((command): command is string => Boolean(command)),
-);
+import { BUILT_IN_COMMANDS } from "../shared/builtInCommands";
 
 const emptyForm = { id: null as string | null, label: "", command: "", template: "" };
 
