@@ -36,6 +36,13 @@ Most AI browser extensions lock you into one model and one vendor. OpenExtension
 - **YouTube** — summarize a video from its transcript.
 - **GitHub** — summarize a pull request's diff, or explain a file you're viewing.
 - **Gmail** — summarize an open thread, or draft a reply and insert it into the compose box with one click (never sent automatically — you review and send).
+
+**Prompt Library & Marketplace (v0.3)**
+
+- **Prompt Library** — your own slash commands, defined as a template with `{{variables}}`. `{{page}}` and `{{selection}}` fill in automatically from page context; any other name prompts a small form before the prompt runs. Managed from the Options page.
+- **Marketplace** — install community-shared prompt packs with one click. No backend: packs are plain JSON files in this repo's [`marketplace/`](./marketplace) folder — anyone can contribute one via a pull request.
+- **Voice input** — a mic button in the prompt box using the browser's built-in speech recognition (not a per-provider API, so it works the same regardless of which provider you've configured).
+- **Selection toolbar toggle** — turn off the floating toolbar in Options if you'd rather use the right-click menu only.
 - No telemetry, no analytics, no backend — everything runs client-side and talks directly to the provider you configured.
 
 See [the roadmap](#roadmap) for what's next.
@@ -79,7 +86,7 @@ Chat streaming happens in the sidebar itself, not the background service worker 
 
 ## Roadmap
 
-v0.1 (core) and v0.2 (site integrations) are both done — see Features above. Next up (v0.3): a Prompt Library for user-defined slash actions, a Marketplace for sharing them, and voice input via the browser's built-in Web Speech API.
+v0.1 (core), v0.2 (site integrations), and v0.3 (Prompt Library, Marketplace, voice input) are all done — see Features above. Next up (v0.4): multi-step AI agents, MCP client integration, and scheduled/recurring Page Actions.
 
 ## Contributing
 
@@ -90,7 +97,7 @@ Issues and PRs are welcome — this is early and the architecture is still settl
 - No telemetry, no analytics, no accounts.
 - API keys are stored in `chrome.storage.local` **unencrypted**, similar to a saved browser password — don't use OpenExtension on a shared or untrusted profile. Keys are sent only directly to the provider you configured them for.
 - The extension requests a specific provider's network permission only when you save a key for it, not upfront for every supported provider.
-- The extension does have one unconditional network permission: it periodically fetches a small JSON file from this repo (`selectors/config.json`) so that a broken site selector (YouTube/GitHub/Gmail changing their markup) can be fixed by updating that file instead of shipping a new release. It's validated as plain strings before use and never treated as executable code.
+- The extension does have one unconditional network permission, scoped to this repo only: it periodically fetches `selectors/config.json` (so a broken site selector can be fixed without shipping a new release) and the Marketplace index/packs (`marketplace/`). Both are validated as plain strings before use and never treated as executable code.
 
 ## License
 
