@@ -1,4 +1,5 @@
 import type { ExtensionMessage } from "../shared/messaging/types";
+import { extractFormFields, setFieldValue } from "./agent/formFields";
 import { extractRequestedContext } from "./context/extractPage";
 import { fetchImageAsDataUrl } from "./context/fetchImage";
 import { insertGmailReply } from "./context/gmailCompose";
@@ -20,6 +21,12 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
   if (message.type === "INSERT_GMAIL_REPLY") {
     insertGmailReply(message.text).then(sendResponse);
     return true;
+  }
+  if (message.type === "EXTRACT_FORM_FIELDS") {
+    sendResponse(extractFormFields());
+  }
+  if (message.type === "SET_FIELD_VALUE") {
+    sendResponse(setFieldValue(message.ref, message.value));
   }
   return undefined;
 });

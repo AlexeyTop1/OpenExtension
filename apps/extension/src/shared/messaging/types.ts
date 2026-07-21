@@ -59,6 +59,18 @@ export interface InsertGmailReplyMessage {
   text: string;
 }
 
+// Sidebar -> the active tab, via chrome.tabs.sendMessage(tabId, ...) directly.
+// First primitive toward the v0.4 "agent" concept — see content/agent/formFields.ts.
+export interface ExtractFormFieldsMessage {
+  type: "EXTRACT_FORM_FIELDS";
+}
+
+export interface SetFieldValueMessage {
+  type: "SET_FIELD_VALUE";
+  ref: string;
+  value: string;
+}
+
 export type ExtensionMessage =
   | ContextRequestMessage
   | ExtractContextMessage
@@ -66,4 +78,6 @@ export type ExtensionMessage =
   | ReplaceSelectionMessage
   | OpenSidebarWithPromptMessage
   | FetchImageDataUrlMessage
-  | InsertGmailReplyMessage;
+  | InsertGmailReplyMessage
+  | ExtractFormFieldsMessage
+  | SetFieldValueMessage;

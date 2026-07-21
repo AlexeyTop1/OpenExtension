@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronLeft,
+  ClipboardList,
   FileText,
   History,
   Languages,
@@ -60,9 +61,11 @@ import type { PendingImageAction } from "../shared/pendingImageAction";
 import type { FetchImageDataUrlResponse } from "../shared/messaging/types";
 import { normalizeUrl } from "./normalizeUrl";
 import { parsePdfBytes } from "../shared/pdfParse";
+import { planFormFill, type FormFieldInfo, type FormFillStep } from "./formFillAgent";
 import { useActiveTabUrl } from "./useActiveTabUrl";
 import ChatHistoryList from "./components/ChatHistoryList";
 import CustomPromptForm from "./components/CustomPromptForm";
+import FormFillPlanReview from "./components/FormFillPlanReview";
 import MessageList from "./components/MessageList";
 import ModelSwitcher from "./components/ModelSwitcher";
 import PageActionsBar from "./components/PageActionsBar";
@@ -114,6 +117,9 @@ export default function App() {
     action: ActionDefinition;
     page: Partial<PageContext>;
   } | null>(null);
+  const [formFillPlan, setFormFillPlan] = useState<{ tabId: number; steps: FormFillStep[] } | null>(null);
+  const [formFillValues, setFormFillValues] = useState<Record<string, string>>({});
+  const [formFillChecked, setFormFillChecked] = useState<Record<string, boolean>>({});
 
   const activeTabUrl = useActiveTabUrl();
   const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
@@ -600,6 +606,88 @@ export default function App() {
     await streamAssistantReply(targetChat, history);
   }
 
+  async function startFormFillPlan() {
+    const targetChat = chatRef.current;
+    if (!targetChat) return;
+
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) {
+      setError("Couldn't find the active tab.");
+      return;
+    }
+
+    let fields: FormFieldInfo[];
+    try {
+      fields = (await chrome.tabs.sendMessage(tab.id, { type: "EXTRACT_FORM_FIELDS" })) as FormFieldInfo[];
+    } catch {
+      setError("Couldn't reach this page — try reloading it.");
+      return;
+    }
+    if (!fields?.length) {
+      setError("No fillable fields found in view — scroll to the form first.");
+      return;
+    }
+
+    setIsSending(true);
+    setError(null);
+    try {
+      // Uses the conversation itself as context instead of asking for a
+      // separate instruction — re-read from storage rather than the
+      // `messages` closure, same reasoning as handleSend below.
+      const historySoFar = await getMessages(targetChat.id);
+      const history: ChatMessage[] = historySoFar.map((message) => ({ role: message.role, content: message.content }));
+      const steps = await planFormFill(targetChat, history, fields);
+      setFormFillPlan({ tabId: tab.id, steps });
+      setFormFillValues(Object.fromEntries(steps.map((step) => [step.ref, step.value])));
+      // Fields the LLM had no info for default unchecked — an empty value
+      // usually isn't something worth writing, but the user can still type
+      // one in and check it themselves.
+      setFormFillChecked(Object.fromEntries(steps.map((step) => [step.ref, step.value.trim().length > 0])));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't plan the form fill.");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  function handleFormFillValueChange(ref: string, value: string) {
+    setFormFillValues((prev) => ({ ...prev, [ref]: value }));
+  }
+
+  function handleFormFillCheckedChange(ref: string, checked: boolean) {
+    setFormFillChecked((prev) => ({ ...prev, [ref]: checked }));
+  }
+
+  function handleFormFillCancel() {
+    setFormFillPlan(null);
+    setFormFillValues({});
+    setFormFillChecked({});
+  }
+
+  async function handleFormFillApply() {
+    if (!formFillPlan) return;
+    setIsSending(true);
+    let applied = 0;
+    let failed = 0;
+    for (const step of formFillPlan.steps) {
+      if (!formFillChecked[step.ref]) continue;
+      try {
+        const ok = await chrome.tabs.sendMessage(formFillPlan.tabId, {
+          type: "SET_FIELD_VALUE",
+          ref: step.ref,
+          value: formFillValues[step.ref] ?? "",
+        });
+        if (ok) applied += 1;
+        else failed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setIsSending(false);
+    handleFormFillCancel();
+    if (failed > 0) setError(`Filled ${applied} field(s), ${failed} couldn't be found anymore — the page may have changed.`);
+  }
+
   async function handleSend(text: string | MessageContentPart[], activeChat?: Chat): Promise<Message | null> {
     const targetChat = activeChat ?? chatRef.current;
     if (!targetChat || isSendingRef.current) return null;
@@ -764,6 +852,27 @@ export default function App() {
               onSubmit={handleSubmitCustomPromptForm}
               onCancel={() => setPendingCustomPrompt(null)}
             />
+          )}
+
+          {formFillPlan && (
+            <FormFillPlanReview
+              steps={formFillPlan.steps}
+              values={formFillValues}
+              checked={formFillChecked}
+              applying={isSending}
+              onValueChange={handleFormFillValueChange}
+              onCheckedChange={handleFormFillCheckedChange}
+              onApply={handleFormFillApply}
+              onCancel={handleFormFillCancel}
+            />
+          )}
+
+          {!formFillPlan && (
+            <div style={{ padding: "0 var(--space-3) var(--space-2)" }}>
+              <button className="btn btn-icon" onClick={() => void startFormFillPlan()} disabled={isSending}>
+                <ClipboardList className="icon" size={14} /> Fill form on this page
+              </button>
+            </div>
           )}
 
           <PageActionsBar
