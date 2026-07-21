@@ -120,6 +120,7 @@ export default function App() {
   const [formFillPlan, setFormFillPlan] = useState<{ tabId: number; steps: FormFillStep[] } | null>(null);
   const [formFillValues, setFormFillValues] = useState<Record<string, string>>({});
   const [formFillChecked, setFormFillChecked] = useState<Record<string, boolean>>({});
+  const [formFillNotice, setFormFillNotice] = useState<string | null>(null);
 
   const activeTabUrl = useActiveTabUrl();
   const normalizedCurrentUrl = activeTabUrl ? normalizeUrl(activeTabUrl) : null;
@@ -630,6 +631,7 @@ export default function App() {
 
     setIsSending(true);
     setError(null);
+    setFormFillNotice(null);
     try {
       // Uses the conversation itself as context instead of asking for a
       // separate instruction — re-read from storage rather than the
@@ -637,12 +639,33 @@ export default function App() {
       const historySoFar = await getMessages(targetChat.id);
       const history: ChatMessage[] = historySoFar.map((message) => ({ role: message.role, content: message.content }));
       const steps = await planFormFill(targetChat, history, fields);
-      setFormFillPlan({ tabId: tab.id, steps });
-      setFormFillValues(Object.fromEntries(steps.map((step) => [step.ref, step.value])));
-      // Fields the LLM had no info for default unchecked — an empty value
-      // usually isn't something worth writing, but the user can still type
-      // one in and check it themselves.
-      setFormFillChecked(Object.fromEntries(steps.map((step) => [step.ref, step.value.trim().length > 0])));
+
+      // Fields the LLM is confident about (non-empty proposal) get written
+      // immediately, no confirmation — filling a text field is reversible
+      // (nothing is submitted), so the risk this skips is negligible. Only
+      // fields the conversation didn't cover get shown for review, since
+      // those are the ones that actually need a human decision.
+      const confidentSteps = steps.filter((step) => step.value.trim().length > 0);
+      const needsInputSteps = steps.filter((step) => step.value.trim().length === 0);
+
+      let autoFilled = 0;
+      for (const step of confidentSteps) {
+        try {
+          const ok = await chrome.tabs.sendMessage(tab.id, { type: "SET_FIELD_VALUE", ref: step.ref, value: step.value });
+          if (ok) autoFilled += 1;
+        } catch {
+          break;
+        }
+      }
+      setFormFillNotice(autoFilled > 0 ? `Auto-filled ${autoFilled} field(s) from the conversation.` : null);
+
+      if (needsInputSteps.length > 0) {
+        setFormFillPlan({ tabId: tab.id, steps: needsInputSteps });
+        setFormFillValues(Object.fromEntries(needsInputSteps.map((step) => [step.ref, ""])));
+        setFormFillChecked(Object.fromEntries(needsInputSteps.map((step) => [step.ref, false])));
+      } else if (autoFilled === 0) {
+        setError("The AI had nothing to fill in from this conversation — mention the details in chat first.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't plan the form fill.");
     } finally {
@@ -652,6 +675,10 @@ export default function App() {
 
   function handleFormFillValueChange(ref: string, value: string) {
     setFormFillValues((prev) => ({ ...prev, [ref]: value }));
+    // Typing into a field implies wanting it included — otherwise the
+    // checkbox and the value are two separately-tracked states and it's not
+    // obvious you also need to check the box after typing something in.
+    setFormFillChecked((prev) => ({ ...prev, [ref]: value.trim().length > 0 }));
   }
 
   function handleFormFillCheckedChange(ref: string, checked: boolean) {
@@ -852,6 +879,12 @@ export default function App() {
               onSubmit={handleSubmitCustomPromptForm}
               onCancel={() => setPendingCustomPrompt(null)}
             />
+          )}
+
+          {formFillNotice && (
+            <div className="text-muted" style={{ padding: "0 var(--space-3)", fontSize: 12 }}>
+              {formFillNotice}
+            </div>
           )}
 
           {formFillPlan && (
